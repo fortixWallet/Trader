@@ -996,13 +996,16 @@ class BybitTrader:
             if not signal:
                 return
 
-            # High impact news — cancel contradicting pending + close open positions
             news_dir = signal.get('direction', '')
             impact = signal.get('impact', 0)
+            title = signal.get('title', '')[:120]
 
-            # Cancel pending orders that contradict the news
+            if impact < 7 or news_dir not in ('BULLISH', 'BEARISH'):
+                return
+
+            # Cancel pending orders that contradict the news (always, any impact 7+)
             cancelled_pending = []
-            if impact >= 7 and news_dir in ('BULLISH', 'BEARISH') and self._pending_orders:
+            if self._pending_orders:
                 cancel_dir = 'SHORT' if news_dir == 'BULLISH' else 'LONG'
                 cancelled_pending = [c for c, po in self._pending_orders.items() if po.direction == cancel_dir]
                 if cancelled_pending:
@@ -1011,21 +1014,95 @@ class BybitTrader:
 
             close_coins = self._news_reactor.should_close_positions(
                 self._tracked, price_getter=self._price_stream.get_price)
-            if close_coins:
-                logger.warning(f"NEWS REACTION: closing {close_coins} — {signal['title'][:50]}")
+
+            if not close_coins:
+                return
+
+            # IMPACT 9-10: AUTO-CLOSE (emergency — hack, ban, crash)
+            if impact >= 9:
+                logger.warning(f"EMERGENCY NEWS ({impact}/10): auto-closing {close_coins} — {title}")
                 for coin in close_coins:
                     if coin in self._tracked:
                         price = self._price_stream.get_price(coin)
                         if price > 0:
                             _, pnl = self._tracked[coin].update(price)
-                            self._close_trade(coin, 'NEWS_REACTION', pnl)
+                            self._close_trade(coin, 'NEWS_EMERGENCY', pnl)
 
                 self._notify(
-                    f"NEWS: {signal['direction']}",
-                    f"Impact: {signal['impact']}/10\n"
-                    f"Closed: {close_coins}\n"
-                    f"Cancelled pending: {cancelled_pending or 'none'}\n"
-                    f"{signal['title'][:80]}")
+                    f"🚨 NEWS EMERGENCY: {news_dir}",
+                    f"Impact: {impact}/10\nAuto-closed: {close_coins}\n{title}")
+                return
+
+            # IMPACT 7-8: ASK PROFI (important but not catastrophic)
+            logger.info(f"NEWS ({impact}/10 {news_dir}): asking Profi about {close_coins} — {title}")
+
+            # Build position context for Profi
+            pos_lines = []
+            for coin in close_coins:
+                if coin in self._tracked:
+                    t = self._tracked[coin]
+                    price = self._price_stream.get_price(coin)
+                    if price > 0:
+                        if t.direction == 'SHORT':
+                            pnl_pct = (t.entry_price - price) / t.entry_price * 100
+                        else:
+                            pnl_pct = (price - t.entry_price) / t.entry_price * 100
+                        roi = pnl_pct * t.leverage
+                        held_min = (time.time() - t.entry_time) / 60
+                        pos_lines.append(f"  {t.direction} {coin} {t.leverage}x: ROI {roi:+.1f}%, held {held_min:.0f}min")
+
+            profi_decision = self._profi._call_simple([{
+                "role": "user",
+                "content": f"""BREAKING NEWS: {title}
+Direction: {news_dir} | Impact: {impact}/10
+
+Your open positions that may be affected:
+{chr(10).join(pos_lines)}
+
+Is this news SYSTEMIC (affects whole market) or ISOLATED (one exchange/coin)?
+For each position decide: CLOSE or HOLD.
+
+Reply JSON: {{"analysis": "brief reason", "decisions": {{"COIN": "CLOSE" or "HOLD", ...}}}}"""
+            }], max_tokens=500)
+
+            logger.info(f"PROFI NEWS DECISION: {profi_decision[:200]}")
+
+            # Parse Profi's decision
+            close_list = []
+            hold_list = []
+            try:
+                import json as _json
+                start = profi_decision.find('{')
+                end = profi_decision.rfind('}') + 1
+                if start >= 0 and end > start:
+                    decision = _json.loads(profi_decision[start:end])
+                    decisions = decision.get('decisions', {})
+                    for coin, action in decisions.items():
+                        if action.upper() == 'CLOSE' and coin in self._tracked:
+                            close_list.append(coin)
+                        else:
+                            hold_list.append(coin)
+            except Exception:
+                # If parsing fails, be safe: close all (fallback to old behavior)
+                logger.warning("Failed to parse Profi news decision — fallback: close all")
+                close_list = close_coins
+
+            # Execute Profi's decisions
+            if close_list:
+                for coin in close_list:
+                    if coin in self._tracked:
+                        price = self._price_stream.get_price(coin)
+                        if price > 0:
+                            _, pnl = self._tracked[coin].update(price)
+                            self._close_trade(coin, 'NEWS_PROFI_CLOSE', pnl)
+
+            self._notify(
+                f"NEWS: {news_dir} ({impact}/10)",
+                f"Profi decided:\n"
+                f"  CLOSE: {close_list or 'none'}\n"
+                f"  HOLD: {hold_list or 'none'}\n"
+                f"Cancelled pending: {cancelled_pending or 'none'}\n"
+                f"{title}")
 
             # Use sentiment to adjust regime confidence
             sentiment = self._news_reactor.get_market_sentiment()
