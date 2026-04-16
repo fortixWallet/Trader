@@ -56,20 +56,27 @@ DAILY_LOSS_LIMIT = -0.04 # -4% of equity → stop trading for the day
 # Simulation avoided these coins — they break S/R levels (Rules 11, 33, 44)
 BAD_COINS = {'BOME', 'DOT', 'AAVE', 'WIF', 'DOGE', 'OP', 'RENDER', 'TAO', 'ARB'}
 
-# Bybit Demo: 25 of our 30 model coins available
+# Bybit Demo: 36 coins (25 original + 11 quality expansion)
 COINS = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'ADA', 'AVAX', 'DOT', 'LINK',
          'DOGE', 'UNI', 'AAVE', 'LDO', 'CRV', 'RENDER', 'TAO',
-         'ARB', 'OP', 'POL', 'WIF', 'PENDLE', 'JUP', 'PYTH', 'JTO', 'BOME']
-# Missing on Bybit: FET, SHIB, PEPE, BONK, RAY
+         'ARB', 'OP', 'POL', 'WIF', 'PENDLE', 'JUP', 'PYTH', 'JTO', 'BOME',
+         # Quality expansion — all verified on Bybit + have deep profiles
+         'SUI', 'LTC', 'BCH', 'TRX', 'NEAR', 'HBAR', 'TON', 'APT',
+         'FIL', 'ALGO', 'XLM']
+# Excluded: BONK, PEPE, SHIB, FET, CAKE, WLD, ENA (memes/volatile, low WR)
 
 # Sector mapping for diversification
 COIN_SECTOR = {
     'BTC': 'major', 'ETH': 'major',
     'SOL': 'L1', 'AVAX': 'L1', 'ADA': 'L1', 'DOT': 'L1',
+    'SUI': 'L1', 'NEAR': 'L1', 'APT': 'L1', 'TON': 'L1', 'HBAR': 'L1',
     'AAVE': 'defi', 'UNI': 'defi', 'LDO': 'defi', 'CRV': 'defi', 'PENDLE': 'defi', 'JUP': 'defi',
     'LINK': 'infra', 'RENDER': 'infra', 'TAO': 'infra', 'PYTH': 'infra', 'JTO': 'infra',
+    'FIL': 'infra', 'ALGO': 'infra',
     'DOGE': 'meme', 'WIF': 'meme', 'BOME': 'meme',
-    'BNB': 'exchange', 'XRP': 'payment', 'ARB': 'L2', 'OP': 'L2', 'POL': 'L2',
+    'BNB': 'exchange',
+    'XRP': 'payment', 'LTC': 'payment', 'BCH': 'payment', 'TRX': 'payment', 'XLM': 'payment',
+    'ARB': 'L2', 'OP': 'L2', 'POL': 'L2',
 }
 
 

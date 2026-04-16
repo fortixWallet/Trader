@@ -26,7 +26,9 @@ COINS = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'ADA', 'AVAX', 'DOT', 'LINK',
          'DOGE', 'UNI', 'AAVE', 'LDO', 'CRV', 'RENDER', 'TAO',
          'ARB', 'OP', 'POL', 'WIF', 'PENDLE', 'JUP', 'PYTH', 'JTO',
          'BONK', 'PEPE', 'SHIB', 'FET', 'RAY', 'BOME', 'W', 'TNSR',
-         'ORCA', 'JTO', 'DRIFT', 'MEW', 'POPCAT']
+         'ORCA', 'JTO', 'DRIFT', 'MEW', 'POPCAT',
+         'SUI', 'LTC', 'BCH', 'TRX', 'NEAR', 'HBAR', 'TON', 'APT',
+         'FIL', 'ALGO', 'XLM']
 
 
 def compile_knowledge():
