@@ -4,6 +4,7 @@ Data: 2+ years of 4H candles, funding rates, liquidations, our trade history.
 
 
 ## BTC — Deep Profile
+**Optimal params (grid search 1071 trades, 2+ years):** SL=1.0×ATR | R:R=1.5 | WR=47% | PF=1.14
 **Current:** $74867.3800 | -40% from 52w high | +19% from 52w low
 **52w range:** $62909.8600 — $125410.8100
 **ATR(4h):** avg 1.46% | range 0.38%-4.88%
@@ -22,6 +23,7 @@ Data: 2+ years of 4H candles, funding rates, liquidations, our trade history.
 *HINT: BTC is low volatility — tight TP (0.5-1%), patience needed, consider skipping in low-vol days.*
 
 ## ETH — Deep Profile
+**Optimal params (grid search 71 trades, 2+ years):** SL=0.6×ATR | R:R=1.2 | WR=52% | PF=1.56
 **Current:** $2339.5400 | -51% from 52w high | +28% from 52w low
 **52w range:** $1825.7000 — $4756.8100
 **ATR(4h):** avg 2.09% | range 0.63%-7.21%
@@ -39,6 +41,7 @@ Data: 2+ years of 4H candles, funding rates, liquidations, our trade history.
 
 
 ## SOL — Deep Profile
+**Optimal params (grid search 71 trades, 2+ years):** SL=0.8×ATR | R:R=2.0 | WR=51% | PF=1.46
 **Current:** $89.0000 | -64% from 52w high | +16% from 52w low
 **52w range:** $76.7100 — $248.3600
 **ATR(4h):** avg 2.69% | range 0.93%-9.28%
@@ -57,6 +60,7 @@ Data: 2+ years of 4H candles, funding rates, liquidations, our trade history.
 *HINT: SOL is -64% from ATH — deeply oversold territory, watch for capitulation bounce.*
 
 ## BNB — Deep Profile
+**Optimal params (grid search 134 trades, 2+ years):** SL=0.5×ATR | R:R=2.0 | WR=48% | PF=1.39
 **Current:** $635.8000 | -53% from 52w high | +11% from 52w low
 **52w range:** $574.1300 — $1343.9500
 **ATR(4h):** avg 1.70% | range 0.38%-6.04%
@@ -74,6 +78,7 @@ Data: 2+ years of 4H candles, funding rates, liquidations, our trade history.
 
 
 ## XRP — Deep Profile
+**Optimal params (grid search 74 trades, 2+ years):** SL=0.6×ATR | R:R=2.5 | WR=47% | PF=1.53
 **Current:** $1.4456 | -54% from 52w high | +19% from 52w low
 **52w range:** $1.2135 — $3.1728
 **ATR(4h):** avg 2.41% | range 0.69%-10.60%
@@ -91,6 +96,7 @@ Data: 2+ years of 4H candles, funding rates, liquidations, our trade history.
 
 
 ## ADA — Deep Profile
+**Optimal params (grid search 76 trades, 2+ years):** SL=0.7×ATR | R:R=2.5 | WR=50% | PF=1.54
 **Current:** $0.2592 | -73% from 52w high | +10% from 52w low
 **52w range:** $0.2361 — $0.9500
 **ATR(4h):** avg 2.78% | range 0.95%-13.29%
@@ -109,6 +115,7 @@ Data: 2+ years of 4H candles, funding rates, liquidations, our trade history.
 *HINT: ADA is -73% from ATH — deeply oversold territory, watch for capitulation bounce.*
 
 ## AVAX — Deep Profile
+**Optimal params (grid search 911 trades, 2+ years):** SL=0.7×ATR | R:R=2.5 | WR=42% | PF=1.16
 **Current:** $9.7700 | -72% from 52w high | +18% from 52w low
 **52w range:** $8.2600 — $35.1900
 **ATR(4h):** avg 2.88% | range 1.09%-11.15%
@@ -146,6 +153,7 @@ Data: 2+ years of 4H candles, funding rates, liquidations, our trade history.
 *HINT: DOT is -71% from ATH — deeply oversold territory, watch for capitulation bounce.*
 
 ## LINK — Deep Profile
+**Optimal params (grid search 59 trades, 2+ years):** SL=0.5×ATR | R:R=2.5 | WR=36% | PF=1.30
 **Current:** $9.5800 | -62% from 52w high | +21% from 52w low
 **52w range:** $7.9200 — $25.2900
 **ATR(4h):** avg 2.80% | range 1.02%-10.42%
@@ -182,6 +190,7 @@ Data: 2+ years of 4H candles, funding rates, liquidations, our trade history.
 *HINT: DOGE is -66% from ATH — deeply oversold territory, watch for capitulation bounce.*
 
 ## UNI — Deep Profile
+**Optimal params (grid search 51 trades, 2+ years):** SL=0.8×ATR | R:R=1.2 | WR=55% | PF=1.56
 **Current:** $3.4350 | -67% from 52w high | +14% from 52w low
 **52w range:** $3.0180 — $10.3140
 **ATR(4h):** avg 3.12% | range 1.10%-12.00%
@@ -220,6 +229,7 @@ Data: 2+ years of 4H candles, funding rates, liquidations, our trade history.
 *HINT: AAVE is -64% from ATH — deeply oversold territory, watch for capitulation bounce.*
 
 ## LDO — Deep Profile
+**Optimal params (grid search 72 trades, 2+ years):** SL=1.0×ATR | R:R=1.5 | WR=57% | PF=1.74
 **Current:** $0.4188 | -69% from 52w high | +52% from 52w low
 **52w range:** $0.2755 — $1.3374
 **ATR(4h):** avg 3.62% | range 1.36%-13.22%
@@ -239,6 +249,7 @@ Data: 2+ years of 4H candles, funding rates, liquidations, our trade history.
 *HINT: LDO is -69% from ATH — deeply oversold territory, watch for capitulation bounce.*
 
 ## CRV — Deep Profile
+**Optimal params (grid search 96 trades, 2+ years):** SL=0.8×ATR | R:R=1.2 | WR=52% | PF=1.28
 **Current:** $0.2336 | -73% from 52w high | +15% from 52w low
 **52w range:** $0.2024 — $0.8555
 **ATR(4h):** avg 3.51% | range 1.40%-13.54%
@@ -333,6 +344,7 @@ Data: 2+ years of 4H candles, funding rates, liquidations, our trade history.
 *HINT: OP is -84% from ATH — deeply oversold territory, watch for capitulation bounce.*
 
 ## POL — Deep Profile
+**Optimal params (grid search 733 trades, 2+ years):** SL=1.2×ATR | R:R=1.2 | WR=50% | PF=1.19
 **Current:** $0.0896 | -69% from 52w high | +10% from 52w low
 **52w range:** $0.0818 — $0.2845
 **ATR(4h):** avg 2.73% | range 0.96%-8.48%
@@ -372,6 +384,7 @@ Data: 2+ years of 4H candles, funding rates, liquidations, our trade history.
 *HINT: WIF is -77% from ATH — deeply oversold territory, watch for capitulation bounce.*
 
 ## PENDLE — Deep Profile
+**Optimal params (grid search 722 trades, 2+ years):** SL=0.8×ATR | R:R=2.5 | WR=44% | PF=1.13
 **Current:** $1.2710 | -76% from 52w high | +29% from 52w low
 **52w range:** $0.9850 — $5.2980
 **ATR(4h):** avg 3.76% | range 1.53%-11.58%
@@ -391,6 +404,7 @@ Data: 2+ years of 4H candles, funding rates, liquidations, our trade history.
 *HINT: PENDLE is -76% from ATH — deeply oversold territory, watch for capitulation bounce.*
 
 ## JUP — Deep Profile
+**Optimal params (grid search 707 trades, 2+ years):** SL=0.9×ATR | R:R=2.0 | WR=47% | PF=1.17
 **Current:** $0.1624 | -71% from 52w high | +18% from 52w low
 **52w range:** $0.1374 — $0.5639
 **ATR(4h):** avg 3.68% | range 1.29%-12.96%
@@ -410,6 +424,7 @@ Data: 2+ years of 4H candles, funding rates, liquidations, our trade history.
 *HINT: JUP is -71% from ATH — deeply oversold territory, watch for capitulation bounce.*
 
 ## PYTH — Deep Profile
+**Optimal params (grid search 713 trades, 2+ years):** SL=0.9×ATR | R:R=2.0 | WR=46% | PF=1.09
 **Current:** $0.0461 | -75% from 52w high | +25% from 52w low
 **52w range:** $0.0370 — $0.1821
 **ATR(4h):** avg 3.55% | range 1.44%-16.06%
@@ -429,6 +444,7 @@ Data: 2+ years of 4H candles, funding rates, liquidations, our trade history.
 *HINT: PYTH is -75% from ATH — deeply oversold territory, watch for capitulation bounce.*
 
 ## JTO — Deep Profile
+**Optimal params (grid search 1033 trades, 2+ years):** SL=0.9×ATR | R:R=1.5 | WR=46% | PF=1.10
 **Current:** $0.2860 | -86% from 52w high | +23% from 52w low
 **52w range:** $0.2328 — $2.0520
 **ATR(4h):** avg 3.89% | range 1.39%-12.98%
@@ -622,6 +638,7 @@ Data: 2+ years of 4H candles, funding rates, liquidations, our trade history.
 *HINT: ORCA is -65% from ATH — deeply oversold territory, watch for capitulation bounce.*
 
 ## JTO — Deep Profile
+**Optimal params (grid search 1033 trades, 2+ years):** SL=0.9×ATR | R:R=1.5 | WR=46% | PF=1.10
 **Current:** $0.2860 | -86% from 52w high | +23% from 52w low
 **52w range:** $0.2328 — $2.0520
 **ATR(4h):** avg 3.89% | range 1.39%-12.98%
@@ -700,6 +717,7 @@ Data: 2+ years of 4H candles, funding rates, liquidations, our trade history.
 *HINT: POPCAT is -69% from ATH — deeply oversold territory, watch for capitulation bounce.*
 
 ## SUI — Deep Profile
+**Optimal params (grid search 1552 trades, 2+ years):** SL=0.6×ATR | R:R=2.5 | WR=47% | PF=1.10
 **Current:** $0.9296 | -76% from 52w high | +12% from 52w low
 **52w range:** $0.8327 — $3.9549
 **ATR(4h):** avg 3.48% | range 1.19%-12.18%
@@ -719,6 +737,7 @@ Data: 2+ years of 4H candles, funding rates, liquidations, our trade history.
 *HINT: SUI is -76% from ATH — deeply oversold territory, watch for capitulation bounce.*
 
 ## LTC — Deep Profile
+**Optimal params (grid search 1081 trades, 2+ years):** SL=1.0×ATR | R:R=1.0 | WR=48% | PF=0.94
 **Current:** $54.4300 | -59% from 52w high | +9% from 52w low
 **52w range:** $50.0800 — $132.1700
 **ATR(4h):** avg 2.37% | range 0.73%-11.28%
@@ -736,6 +755,7 @@ Data: 2+ years of 4H candles, funding rates, liquidations, our trade history.
 
 
 ## BCH — Deep Profile
+**Optimal params (grid search 940 trades, 2+ years):** SL=1.2×ATR | R:R=1.0 | WR=51% | PF=1.08
 **Current:** $434.6000 | -34% from 52w high | +3% from 52w low
 **52w range:** $421.3000 — $661.8000
 **ATR(4h):** avg 2.49% | range 0.70%-8.58%
@@ -753,6 +773,7 @@ Data: 2+ years of 4H candles, funding rates, liquidations, our trade history.
 
 
 ## TRX — Deep Profile
+**Optimal params (grid search 1013 trades, 2+ years):** SL=0.9×ATR | R:R=2.5 | WR=43% | PF=1.08
 **Current:** $0.3233 | -8% from 52w high | +20% from 52w low
 **52w range:** $0.2691 — $0.3533
 **ATR(4h):** avg 1.09% | range 0.32%-14.16%
@@ -771,6 +792,7 @@ Data: 2+ years of 4H candles, funding rates, liquidations, our trade history.
 *HINT: TRX is low volatility — tight TP (0.5-1%), patience needed, consider skipping in low-vol days.*
 
 ## NEAR — Deep Profile
+**Optimal params (grid search 1190 trades, 2+ years):** SL=1.2×ATR | R:R=1.8 | WR=47% | PF=1.10
 **Current:** $1.3660 | -57% from 52w high | +44% from 52w low
 **52w range:** $0.9470 — $3.2080
 **ATR(4h):** avg 3.34% | range 1.21%-10.18%
@@ -789,6 +811,7 @@ Data: 2+ years of 4H candles, funding rates, liquidations, our trade history.
 *HINT: NEAR is highly volatile — wider TP/SL needed (1.5-2.5%), fast moves, don't hold too long.*
 
 ## HBAR — Deep Profile
+**Optimal params (grid search 671 trades, 2+ years):** SL=1.0×ATR | R:R=2.0 | WR=46% | PF=1.11
 **Current:** $0.0850 | -66% from 52w high | +9% from 52w low
 **52w range:** $0.0781 — $0.2526
 **ATR(4h):** avg 3.05% | range 1.00%-15.22%
@@ -808,6 +831,7 @@ Data: 2+ years of 4H candles, funding rates, liquidations, our trade history.
 *HINT: HBAR is -66% from ATH — deeply oversold territory, watch for capitulation bounce.*
 
 ## TON — Deep Profile
+**Optimal params (grid search 750 trades, 2+ years):** SL=1.2×ATR | R:R=1.5 | WR=50% | PF=1.10
 **Current:** $1.3780 | -58% from 52w high | +15% from 52w low
 **52w range:** $1.2010 — $3.2570
 **ATR(4h):** avg 2.29% | range 0.69%-11.18%
@@ -825,6 +849,7 @@ Data: 2+ years of 4H candles, funding rates, liquidations, our trade history.
 
 
 ## APT — Deep Profile
+**Optimal params (grid search 1017 trades, 2+ years):** SL=0.9×ATR | R:R=1.8 | WR=47% | PF=1.09
 **Current:** $0.8550 | -85% from 52w high | +6% from 52w low
 **52w range:** $0.8030 — $5.5870
 **ATR(4h):** avg 3.16% | range 0.81%-13.83%
@@ -844,6 +869,7 @@ Data: 2+ years of 4H candles, funding rates, liquidations, our trade history.
 *HINT: APT is -85% from ATH — deeply oversold territory, watch for capitulation bounce.*
 
 ## FIL — Deep Profile
+**Optimal params (grid search 781 trades, 2+ years):** SL=0.9×ATR | R:R=1.0 | WR=52% | PF=1.08
 **Current:** $0.8850 | -74% from 52w high | +10% from 52w low
 **52w range:** $0.8010 — $3.3920
 **ATR(4h):** avg 3.02% | range 1.26%-20.41%
@@ -863,6 +889,7 @@ Data: 2+ years of 4H candles, funding rates, liquidations, our trade history.
 *HINT: FIL is -74% from ATH — deeply oversold territory, watch for capitulation bounce.*
 
 ## ALGO — Deep Profile
+**Optimal params (grid search 1193 trades, 2+ years):** SL=0.9×ATR | R:R=1.8 | WR=47% | PF=1.10
 **Current:** $0.1067 | -58% from 52w high | +32% from 52w low
 **52w range:** $0.0809 — $0.2546
 **ATR(4h):** avg 3.02% | range 1.21%-10.50%
@@ -881,6 +908,7 @@ Data: 2+ years of 4H candles, funding rates, liquidations, our trade history.
 *HINT: ALGO is highly volatile — wider TP/SL needed (1.5-2.5%), fast moves, don't hold too long.*
 
 ## XLM — Deep Profile
+**Optimal params (grid search 1092 trades, 2+ years):** SL=1.2×ATR | R:R=1.0 | WR=51% | PF=1.12
 **Current:** $0.1548 | -62% from 52w high | +5% from 52w low
 **52w range:** $0.1471 — $0.4118
 **ATR(4h):** avg 2.51% | range 0.79%-15.31%
