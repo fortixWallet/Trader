@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.eggs/
+dist/
+build/
+venv/
+.venv/
+
+# Data (large files, sensitive)
+data/crypto/market.db
+data/crypto/market.db-shm
+data/crypto/market.db-wal
+data/crypto/market.db.bak*
+data/crypto/trades.db
+data/crypto/patterns.db
+data/crypto/training_dataset_*.csv
+data/crypto/models_v5/
+data/crypto/forest_models/
+data/crypto/regression_models/
+data/crypto/model_versions/
+data/crypto/models_1h/
+data/crypto/models_4h/
+data/crypto/models_v3/
+data/crypto/models_v4/
+data/crypto/training/
+data/crypto/training_4h/
+data/crypto/training_new_coins/
+data/crypto/training_results/
+data/crypto/backtest_*/
+data/crypto/replay_today/
+data/crypto/charts/
+data/crypto/*.json
+data/crypto/*.txt
+
+# Logs
+logs/
+
+# Env / secrets
+.env
+*.env
+ecosystem.config.js
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/

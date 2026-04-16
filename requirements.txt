@@ -1,0 +1,43 @@
+# FORTIX Factory — Python Dependencies
+# Generated 2026-03-30
+
+# AI & LLM
+anthropic>=0.39.0,<1.0
+
+# Text-to-Speech
+elevenlabs>=1.0.0
+openai-whisper>=20240930
+
+# Crypto Data
+ccxt>=4.4.0
+
+# ML & Data Science
+lightgbm>=4.5.0
+numpy>=1.26.0,<2.0
+pandas>=2.2.0
+scipy>=1.14.0
+scikit-learn>=1.5.0
+
+# Charts & Visuals
+matplotlib>=3.9.0
+pillow>=11.0.0
+playwright>=1.48.0
+
+# YouTube & Google APIs
+google-auth>=2.35.0
+google-auth-oauthlib>=1.2.0
+google-api-python-client>=2.150.0
+
+# Web & HTTP
+requests>=2.32.0
+beautifulsoup4>=4.12.0
+feedparser>=6.0.0
+websocket-client>=1.8.0
+
+# Auth & Tokens
+PyJWT>=2.9.0
+
+# Utilities
+python-dotenv>=1.0.0
+schedule>=1.2.0
+pytrends>=4.9.0
