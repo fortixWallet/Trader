@@ -1554,8 +1554,8 @@ Reply ONLY one word: "HOLD" or "CLOSE" and the SPECIFIC thing that broke."""
                 logger.info(f"{coin}: no budget for limit order")
                 continue
 
-            # ATR-based SL/TP — matches simulation settings that produced +302% PnL
-            # Simulation: SL = 0.8× ATR, TP = R:R 1.8x (= 1.44× ATR)
+            # PROFI CONTROLS SL/TP — він бачить walls, S/R, ATR, per-coin optimal params.
+            # Fallback: якщо Profi values невалідні → ATR × 0.8, R:R 2.0
             import numpy as np
             try:
                 atr_rows = sqlite3.connect(str(DB_PATH)).execute(
@@ -1565,15 +1565,24 @@ Reply ONLY one word: "HOLD" or "CLOSE" and the SPECIFIC thing that broke."""
             except Exception:
                 coin_atr = 0.01
 
-            sl_dist = coin_atr * 0.8   # 0.8× ATR (simulation setting)
-            tp_dist = sl_dist * 2.0     # R:R 2.0x (matches simulation that produced +302%)
+            # Validate Profi's SL/TP
+            profi_sl_valid = sl > 0 and (
+                (direction == 'LONG' and sl < entry) or
+                (direction == 'SHORT' and sl > entry))
+            profi_tp_valid = tp > 0 and (
+                (direction == 'LONG' and tp > entry) or
+                (direction == 'SHORT' and tp < entry))
 
-            if direction == 'LONG':
-                sl = round(entry * (1 - sl_dist), 6)
-                tp = round(entry * (1 + tp_dist), 6)
-            else:
-                sl = round(entry * (1 + sl_dist), 6)
-                tp = round(entry * (1 - tp_dist), 6)
+            if not profi_sl_valid or not profi_tp_valid:
+                sl_dist = coin_atr * 0.8
+                tp_dist = sl_dist * 2.0
+                if direction == 'LONG':
+                    sl = round(entry * (1 - sl_dist), 6)
+                    tp = round(entry * (1 + tp_dist), 6)
+                else:
+                    sl = round(entry * (1 + sl_dist), 6)
+                    tp = round(entry * (1 - tp_dist), 6)
+                logger.info(f"{coin}: Profi SL/TP invalid, using ATR fallback")
 
             # Smart entry: BTC momentum decides AGGRESSIVE vs PATIENT
             # AGGRESSIVE = live price (fills immediately), PATIENT = Opus entry (waits)
