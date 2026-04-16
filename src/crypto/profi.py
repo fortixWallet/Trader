@@ -873,6 +873,12 @@ Give daily strategy. Reply JSON ONLY:
             if r and r[0] is not None: parts.append(f"CB_premium={r[0]:+.3f}%")
             r = _conn.execute("SELECT liq_usd_24h, long_liq_usd_24h, short_liq_usd_24h FROM cg_liquidations WHERE coin='BTC' ORDER BY timestamp DESC LIMIT 1").fetchone()
             if r and r[0]: parts.append(f"BTC_liq_24h=${r[0]/1e6:.0f}M(L${r[1]/1e6:.0f}M/S${r[2]/1e6:.0f}M)")
+            btc_7d = _conn.execute("SELECT close FROM prices WHERE coin='BTC' AND timeframe='4h' ORDER BY timestamp DESC LIMIT 42").fetchall()
+            btc_1d = _conn.execute("SELECT close FROM prices WHERE coin='BTC' AND timeframe='4h' ORDER BY timestamp DESC LIMIT 6").fetchall()
+            if len(btc_7d) >= 42:
+                parts.insert(0, f"BTC_7d={((btc_7d[0][0]/btc_7d[-1][0])-1)*100:+.1f}%")
+            if len(btc_1d) >= 6:
+                parts.insert(1, f"BTC_1d={((btc_1d[0][0]/btc_1d[-1][0])-1)*100:+.1f}%")
             _conn.close()
             if parts:
                 content.append({"type": "text", "text": f"MACRO: {' | '.join(parts)}"})

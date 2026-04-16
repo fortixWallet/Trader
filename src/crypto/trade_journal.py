@@ -295,10 +295,11 @@ class TradeJournal:
     # === QUERY METHODS FOR OPUS ===
 
     def get_recent_results(self, n=10) -> str:
-        """Last N closed trades as string for scan prompt."""
+        """Last N closed trades as string for scan prompt, with entry context."""
         conn = self._conn()
         rows = conn.execute("""
-            SELECT direction, coin, pnl_usd, exit_reason, held_minutes, entry_type, leverage
+            SELECT direction, coin, pnl_usd, exit_reason, held_minutes, entry_type, leverage,
+                   regime, confidence, fill_ob_imbalance, fill_momentum_15m, fill_funding_rate
             FROM fortix_trades WHERE status='CLOSED'
             ORDER BY closed_at DESC LIMIT ?
         """, (n,)).fetchall()
@@ -308,11 +309,19 @@ class TradeJournal:
             return "No completed trades yet."
 
         lines = []
-        for d, coin, pnl, reason, mins, etype, lev in rows:
+        for row in rows:
+            d, coin, pnl, reason, mins, etype, lev = row[:7]
+            regime, conf, ob, mom, fund = row[7:12]
             pnl = pnl or 0
             mins = int(mins or 0)
             etype = etype or '?'
-            lines.append(f"  {d} {coin} {lev}x ({etype}): ${pnl:+.2f} [{reason}] {mins}min")
+            ctx = []
+            if regime: ctx.append(f"regime={regime}")
+            if ob is not None: ctx.append(f"OB={ob:+.0%}")
+            if mom is not None: ctx.append(f"mom={mom:+.1f}%")
+            if fund is not None: ctx.append(f"fund={fund*100:+.3f}%")
+            ctx_str = f" | {' '.join(ctx)}" if ctx else ""
+            lines.append(f"  {d} {coin} {lev}x ({etype}): ${pnl:+.2f} [{reason}] {mins}min{ctx_str}")
         return "LAST TRADES:\n" + "\n".join(lines)
 
     def get_stats(self, days=7) -> str:
