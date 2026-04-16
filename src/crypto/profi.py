@@ -853,6 +853,32 @@ Give daily strategy. Reply JSON ONLY:
 
         content = []
 
+        # Macro data — real numbers from DB, no interpretation
+        try:
+            _conn = sqlite3.connect(str(DB_PATH))
+            parts = []
+            r = _conn.execute("SELECT value FROM fear_greed ORDER BY date DESC LIMIT 1").fetchone()
+            if r: parts.append(f"F&G={r[0]}")
+            r = _conn.execute("SELECT value FROM cq_btc_onchain WHERE metric='mvrv' ORDER BY date DESC LIMIT 1").fetchone()
+            if r and r[0]: parts.append(f"MVRV={r[0]:.2f}")
+            r = _conn.execute("SELECT value FROM cq_btc_onchain WHERE metric='sopr' ORDER BY date DESC LIMIT 1").fetchone()
+            if r and r[0]: parts.append(f"SOPR={r[0]:.3f}")
+            r = _conn.execute("SELECT value FROM cq_btc_onchain WHERE metric='nupl' ORDER BY date DESC LIMIT 1").fetchone()
+            if r and r[0]: parts.append(f"NUPL={r[0]:.2f}")
+            r = _conn.execute("SELECT rate FROM funding_rates WHERE coin='BTC' ORDER BY timestamp DESC LIMIT 1").fetchone()
+            if r and r[0] is not None: parts.append(f"BTC_funding={r[0]*100:+.3f}%")
+            r = _conn.execute("SELECT long_ratio FROM long_short_ratio WHERE coin='BTC' ORDER BY timestamp DESC LIMIT 1").fetchone()
+            if r and r[0]: parts.append(f"BTC_LS_ratio={r[0]:.2f}")
+            r = _conn.execute("SELECT premium_index FROM cq_coinbase_premium ORDER BY date DESC LIMIT 1").fetchone()
+            if r and r[0] is not None: parts.append(f"CB_premium={r[0]:+.3f}%")
+            r = _conn.execute("SELECT liq_usd_24h, long_liq_usd_24h, short_liq_usd_24h FROM cg_liquidations WHERE coin='BTC' ORDER BY timestamp DESC LIMIT 1").fetchone()
+            if r and r[0]: parts.append(f"BTC_liq_24h=${r[0]/1e6:.0f}M(L${r[1]/1e6:.0f}M/S${r[2]/1e6:.0f}M)")
+            _conn.close()
+            if parts:
+                content.append({"type": "text", "text": f"MACRO: {' | '.join(parts)}"})
+        except Exception:
+            pass
+
         # BTC momentum — strongest predictor (85% correlation with alts)
         exchange = getattr(self, '_exchange', None)
         btc_momentum = ""
