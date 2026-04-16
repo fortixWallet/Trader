@@ -1180,6 +1180,10 @@ class CryptoPanicCollector:
         self.api_key = CRYPTOPANIC_KEY
 
     def collect(self, conn: sqlite3.Connection):
+        # CryptoPanic API deprecated (all endpoints 404 since Apr 2026)
+        # News collected via RSS (CoinDesk/CoinTelegraph) + Twitter instead
+        log.info("[CryptoPanic] Skipped — API deprecated (404). Using RSS + Twitter.")
+        return 0
         if not self.api_key:
             log.info("[CryptoPanic] Skipped — no API key (set CRYPTOPANIC_API_KEY)")
             return 0
