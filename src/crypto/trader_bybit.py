@@ -1377,14 +1377,25 @@ Reply JSON: {{"verdict": "REVERSAL" or "PULLBACK", "cancel_pending": true/false,
 
                     # Parse response
                     if profi_response and 'REVERSAL' in profi_response.upper():
-                        logger.warning("GUARDIAN: Profi confirmed REVERSAL — cancelling contra pending")
-
                         # Determine dominant position direction
                         longs = sum(1 for t in self._tracked.values() if t.direction == 'LONG')
                         shorts = sum(1 for t in self._tracked.values() if t.direction == 'SHORT')
                         losing_dir = 'LONG' if longs > shorts else 'SHORT'
 
-                        # Cancel pending in losing direction
+                        logger.warning(f"GUARDIAN: Profi confirmed REVERSAL — closing {losing_dir} positions + pending + rescan")
+
+                        # 1. Close ALL positions in losing direction
+                        closed_count = 0
+                        for coin in list(self._tracked.keys()):
+                            tracked = self._tracked.get(coin)
+                            if tracked and tracked.direction == losing_dir:
+                                price = self._price_stream.get_price(coin)
+                                if price > 0:
+                                    _, pnl = tracked.update(price)
+                                    self._close_trade(coin, 'GUARDIAN_REVERSAL', pnl)
+                                    closed_count += 1
+
+                        # 2. Cancel pending in losing direction
                         cancelled = 0
                         for coin in list(self._pending_orders.keys()):
                             po = self._pending_orders.get(coin)
@@ -1396,13 +1407,21 @@ Reply JSON: {{"verdict": "REVERSAL" or "PULLBACK", "cancel_pending": true/false,
                                 self._pending_orders.pop(coin, None)
                                 cancelled += 1
 
-                        if cancelled:
-                            logger.info(f"GUARDIAN: cancelled {cancelled} {losing_dir} pending orders")
-                            self._notify("GUARDIAN: Reversal detected",
-                                        f"{reason}\nProfi: REVERSAL\nCancelled {cancelled} {losing_dir} pending")
+                        logger.info(f"GUARDIAN: closed {closed_count} {losing_dir} positions, "
+                                   f"cancelled {cancelled} {losing_dir} pending")
+                        self._notify("GUARDIAN: REVERSAL ACTION",
+                                    f"{reason}\nClosed {closed_count} {losing_dir} positions\n"
+                                    f"Cancelled {cancelled} pending\nTriggering rescan...")
+
+                        # 3. Immediate rescan with fresh direction
+                        try:
+                            logger.info("GUARDIAN: triggering immediate rescan")
+                            self._open_new_positions()
+                        except Exception as e:
+                            logger.warning(f"Guardian rescan error: {e}")
 
                         # Reset peak for fresh tracking
-                        portfolio_peak_pnl = total_roi
+                        portfolio_peak_pnl = 0.0
 
                     else:
                         logger.info("GUARDIAN: Profi says PULLBACK — holding positions, SL/trailing will handle")
