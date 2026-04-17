@@ -1022,19 +1022,16 @@ TWO ENTRY MODES:
 
 YOU control TP and SL. Set them based on S/R levels AND ATR. Verified on 1500+ trades:
 
-SL RULES (from training):
-  - SL = 0.8-1.0× ATR_1h (NEVER less). Each coin moves differently.
-  - SL behind the S/R level where you entered. If level breaks = thesis wrong.
-  - Fixed 0.5% SL = LOSING strategy (proven: -7% PnL). ATR-based SL = WINNING (+23%).
-  - Use order book walls as SL targets — a $200K buy wall protects your position.
+RISK MANAGEMENT (code-enforced, same for ALL coins):
+  - SL = -6.5% ROI on exchange. Fixed. If wrong → cut loss fast.
+  - NO TP on exchange. Profit is UNLIMITED — trailing stop handles exit.
+  - TRAILING STOP: activates at +10% ROI. If ROI drops 2% from peak → close.
+    Example: peak +15% ROI → drops to +13% → trailing closes at +13%.
+    Example: peak +30% ROI → drops to +28% → trailing closes at +28%.
+  - YOUR ROLE: pick DIRECTION and ENTRY. Focus on coins that will MOVE BIG.
+    The bigger the move, the more trailing captures. Find momentum.
 
-TP RULES (from training):
-  - TP at next S/R level. MUST be reachable within 1-2 hours.
-  - R:R target 1.5-1.8x (not higher — 2.0x+ rarely hits in time).
-  - Resistance rejection setups > support bounce (+16% vs +11% in training).
-  - Avg winning trade = +1.0% price. Don't aim for more.
-
-Leverage: 8-10x.
+Leverage: 8x.
 
 Reply JSON array (5-8 setups):
 [{{

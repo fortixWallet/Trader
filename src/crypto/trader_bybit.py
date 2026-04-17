@@ -130,19 +130,15 @@ class TrackedPosition:
         if roi > self.peak_pnl:
             self.peak_pnl = roi
 
-        # Trailing stop: activation +8% ROI, drop -2% from peak
-        if self.peak_pnl >= 8.0:
+        # Trailing stop: activation +10% ROI, drop -2% from peak. NO fixed TP.
+        if self.peak_pnl >= 10.0:
             self.trailing_active = True
         if self.trailing_active and roi <= self.peak_pnl - 2.0:
             return 'TRAILING_STOP', pnl_pct
 
-        # SL: -6.5% ROI
+        # SL: -6.5% ROI (backup — exchange SL should fire first)
         if roi <= -6.5:
             return 'STOP_LOSS', pnl_pct
-
-        # TP: +13% ROI
-        if roi >= 13.0:
-            return 'TARGET_HIT', pnl_pct
 
         # Emergency backup
         if pnl_pct <= EMERGENCY_STOP:
@@ -1517,27 +1513,27 @@ Reply ONLY one word: "HOLD" or "CLOSE" and the SPECIFIC thing that broke."""
                 except Exception:
                     pass
 
-            # If AGGRESSIVE entry changed, shift TP/SL by same offset
+            # If AGGRESSIVE entry changed, shift SL by same offset
             if entry_mode == 'AGGRESSIVE' and original_entry > 0:
                 shift = entry - original_entry
-                tp = round(tp + shift, 6)
                 sl = round(sl + shift, 6)
 
-            # Log with actual ROI
+            # FIXED SL = -6.5% ROI. NO TP on exchange (trailing handles profit).
+            sl_fixed_dist = entry * 0.065 / lev  # 6.5% ROI → price distance
             if direction == 'LONG':
-                actual_tp_roi = (tp - entry) / entry * lev * 100 if entry > 0 else 0
-                actual_sl_roi = (entry - sl) / entry * lev * 100 if entry > 0 else 0
+                sl = round(entry - sl_fixed_dist, 6)
             else:
-                actual_tp_roi = (entry - tp) / entry * lev * 100 if entry > 0 else 0
-                actual_sl_roi = (sl - entry) / entry * lev * 100 if entry > 0 else 0
+                sl = round(entry + sl_fixed_dist, 6)
+            tp = 0  # No TP on exchange — trailing stop handles exit
 
+            actual_sl_roi = 6.5
             logger.info(f"  {entry_mode}: {direction} {coin} @${entry:.4f} "
-                       f"TP={actual_tp_roi:.0f}%ROI SL={actual_sl_roi:.0f}%ROI {lev}x (conf={conf:.0%})")
+                       f"SL=-{actual_sl_roi:.1f}%ROI TP=trailing(10%/-2%) {lev}x (conf={conf:.0%})")
 
-            # Place limit order with TP/SL attached
+            # Place limit order with SL only (no TP)
             order_id = self.exchange.place_level_order(
                 coin, side, amount, entry,
-                sl_price=sl, tp_price=tp)
+                sl_price=sl, tp_price=0)
 
             if not order_id:
                 logger.warning(f"Failed to place level order: {coin} {side} @ ${entry:.4f}")
