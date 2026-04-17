@@ -56,27 +56,20 @@ DAILY_LOSS_LIMIT = -0.04 # -4% of equity → stop trading for the day
 # Simulation avoided these coins — they break S/R levels (Rules 11, 33, 44)
 BAD_COINS = {'BOME', 'DOT', 'AAVE', 'WIF', 'DOGE', 'OP', 'RENDER', 'TAO', 'ARB'}
 
-# Bybit Demo: 36 coins (25 original + 11 quality expansion)
+# Bybit Demo: 25 of our 30 model coins available
 COINS = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'ADA', 'AVAX', 'DOT', 'LINK',
          'DOGE', 'UNI', 'AAVE', 'LDO', 'CRV', 'RENDER', 'TAO',
-         'ARB', 'OP', 'POL', 'WIF', 'PENDLE', 'JUP', 'PYTH', 'JTO', 'BOME',
-         # Quality expansion — all verified on Bybit + have deep profiles
-         'SUI', 'LTC', 'BCH', 'TRX', 'NEAR', 'HBAR', 'TON', 'APT',
-         'FIL', 'ALGO', 'XLM']
-# Excluded: BONK, PEPE, SHIB, FET, CAKE, WLD, ENA (memes/volatile, low WR)
+         'ARB', 'OP', 'POL', 'WIF', 'PENDLE', 'JUP', 'PYTH', 'JTO', 'BOME']
+# Missing on Bybit: FET, SHIB, PEPE, BONK, RAY
 
 # Sector mapping for diversification
 COIN_SECTOR = {
     'BTC': 'major', 'ETH': 'major',
     'SOL': 'L1', 'AVAX': 'L1', 'ADA': 'L1', 'DOT': 'L1',
-    'SUI': 'L1', 'NEAR': 'L1', 'APT': 'L1', 'TON': 'L1', 'HBAR': 'L1',
     'AAVE': 'defi', 'UNI': 'defi', 'LDO': 'defi', 'CRV': 'defi', 'PENDLE': 'defi', 'JUP': 'defi',
     'LINK': 'infra', 'RENDER': 'infra', 'TAO': 'infra', 'PYTH': 'infra', 'JTO': 'infra',
-    'FIL': 'infra', 'ALGO': 'infra',
     'DOGE': 'meme', 'WIF': 'meme', 'BOME': 'meme',
-    'BNB': 'exchange',
-    'XRP': 'payment', 'LTC': 'payment', 'BCH': 'payment', 'TRX': 'payment', 'XLM': 'payment',
-    'ARB': 'L2', 'OP': 'L2', 'POL': 'L2',
+    'BNB': 'exchange', 'XRP': 'payment', 'ARB': 'L2', 'OP': 'L2', 'POL': 'L2',
 }
 
 
@@ -132,12 +125,12 @@ class TrackedPosition:
         else:
             pnl_pct = (current_price - self.entry_price) / self.entry_price
 
-        roi = pnl_pct * self.leverage * 100  # ROI in %
+        roi = pnl_pct * self.leverage * 100
 
         if roi > self.peak_pnl:
             self.peak_pnl = roi
 
-        # Trailing stop: activation +8% ROI, drop -2% from peak (tested best on 210 trades)
+        # Trailing stop: activation +8% ROI, drop -2% from peak
         if self.peak_pnl >= 8.0:
             self.trailing_active = True
         if self.trailing_active and roi <= self.peak_pnl - 2.0:
@@ -438,43 +431,10 @@ class BybitTrader:
                 pass
 
             if bull_score >= 2:
-                regime = 'BULL'
-            elif bear_score >= 2:
-                regime = 'BEAR'
-            else:
-                regime = 'FLAT'
-
-            # MACRO TREND FILTER — don't trade against 7-day trend
-            # Prevents: shorting in pullbacks during bull rallies (today's #1 loss cause)
-            # Override: if 1-day move > 3% against macro → allow (real crash/reversal)
-            try:
-                conn2 = sqlite3.connect(str(DB_PATH))
-                btc_7d = conn2.execute(
-                    "SELECT close FROM prices WHERE coin='BTC' AND timeframe='4h' "
-                    "ORDER BY timestamp DESC LIMIT 42"
-                ).fetchall()  # 42 × 4h = 7 days
-                btc_1d = conn2.execute(
-                    "SELECT close FROM prices WHERE coin='BTC' AND timeframe='4h' "
-                    "ORDER BY timestamp DESC LIMIT 6"
-                ).fetchall()  # 6 × 4h = 24h
-                conn2.close()
-
-                if len(btc_7d) >= 42 and len(btc_1d) >= 6:
-                    macro_7d = (btc_7d[0][0] / btc_7d[-1][0] - 1) * 100
-                    change_1d = (btc_1d[0][0] / btc_1d[-1][0] - 1) * 100
-
-                    if macro_7d >= 3.0 and change_1d > -3.0 and regime == 'BEAR':
-                        logger.info(f"MACRO FILTER: BTC +{macro_7d:.1f}% 7d, {change_1d:+.1f}% 1d → "
-                                   f"block BEAR (pullback, not crash) → FLAT")
-                        regime = 'FLAT'
-                    elif macro_7d <= -3.0 and change_1d < 3.0 and regime == 'BULL':
-                        logger.info(f"MACRO FILTER: BTC {macro_7d:.1f}% 7d, {change_1d:+.1f}% 1d → "
-                                   f"block BULL (bounce, not reversal) → FLAT")
-                        regime = 'FLAT'
-            except Exception:
-                pass
-
-            return regime, btc_12h
+                return 'BULL', btc_12h
+            if bear_score >= 2:
+                return 'BEAR', btc_12h
+            return 'FLAT', btc_12h
 
         except Exception:
             return 'FLAT', 0
@@ -761,9 +721,7 @@ class BybitTrader:
 
         confidence = getattr(self, '_last_confidence', 0.7)
         cb_factor = getattr(self, '_post_cb_size_factor', 1.0)
-        # High-conf boost: 15% equity when conf >= 0.72, else 10%
-        risk = 0.15 if confidence >= 0.72 else RISK_PER_POSITION
-        target_margin = min(budget * risk * confidence * cb_factor, available)
+        target_margin = min(budget * RISK_PER_POSITION * confidence * cb_factor, available)
         target_notional = target_margin * leverage
 
         info = self.exchange.get_contract_info(coin)
@@ -951,17 +909,9 @@ class BybitTrader:
                 self._journal.record_close(tracked.trade_id, exit_price, pnl_pct, pnl_usd, reason, held_min)
 
             # Cooldown after SL — don't reopen same coin for 2 hours
-            if reason in ('STOP_LOSS', 'GUARDIAN_REVERSAL'):
+            if reason == 'STOP_LOSS':
                 self._coin_cooldown[coin] = time.time()
-                # Daily SL counter — 2 SL on same coin = ban for rest of day
-                daily_key = f"{coin}_{datetime.now(timezone.utc).strftime('%Y-%m-%d')}"
-                self._daily_sl_count = getattr(self, '_daily_sl_count', {})
-                self._daily_sl_count[daily_key] = self._daily_sl_count.get(daily_key, 0) + 1
-                if self._daily_sl_count[daily_key] >= 2:
-                    self._banned_coins.add(coin)
-                    logger.warning(f"DAILY BAN: {coin} — {self._daily_sl_count[daily_key]} SL today, banned until tomorrow")
-                else:
-                    logger.info(f"COOLDOWN: {coin} on 2h cooldown after SL ({self._daily_sl_count[daily_key]}/2 today)")
+                logger.info(f"COOLDOWN: {coin} on 2h cooldown after SL")
 
             self._closing_lock.discard(coin)
             return True
@@ -1029,16 +979,13 @@ class BybitTrader:
             if not signal:
                 return
 
+            # High impact news — cancel contradicting pending + close open positions
             news_dir = signal.get('direction', '')
             impact = signal.get('impact', 0)
-            title = signal.get('title', '')[:120]
 
-            if impact < 7 or news_dir not in ('BULLISH', 'BEARISH'):
-                return
-
-            # Cancel pending orders that contradict the news (always, any impact 7+)
+            # Cancel pending orders that contradict the news
             cancelled_pending = []
-            if self._pending_orders:
+            if impact >= 7 and news_dir in ('BULLISH', 'BEARISH') and self._pending_orders:
                 cancel_dir = 'SHORT' if news_dir == 'BULLISH' else 'LONG'
                 cancelled_pending = [c for c, po in self._pending_orders.items() if po.direction == cancel_dir]
                 if cancelled_pending:
@@ -1047,95 +994,21 @@ class BybitTrader:
 
             close_coins = self._news_reactor.should_close_positions(
                 self._tracked, price_getter=self._price_stream.get_price)
-
-            if not close_coins:
-                return
-
-            # IMPACT 9-10: AUTO-CLOSE (emergency — hack, ban, crash)
-            if impact >= 9:
-                logger.warning(f"EMERGENCY NEWS ({impact}/10): auto-closing {close_coins} — {title}")
+            if close_coins:
+                logger.warning(f"NEWS REACTION: closing {close_coins} — {signal['title'][:50]}")
                 for coin in close_coins:
                     if coin in self._tracked:
                         price = self._price_stream.get_price(coin)
                         if price > 0:
                             _, pnl = self._tracked[coin].update(price)
-                            self._close_trade(coin, 'NEWS_EMERGENCY', pnl)
+                            self._close_trade(coin, 'NEWS_REACTION', pnl)
 
                 self._notify(
-                    f"🚨 NEWS EMERGENCY: {news_dir}",
-                    f"Impact: {impact}/10\nAuto-closed: {close_coins}\n{title}")
-                return
-
-            # IMPACT 7-8: ASK PROFI (important but not catastrophic)
-            logger.info(f"NEWS ({impact}/10 {news_dir}): asking Profi about {close_coins} — {title}")
-
-            # Build position context for Profi
-            pos_lines = []
-            for coin in close_coins:
-                if coin in self._tracked:
-                    t = self._tracked[coin]
-                    price = self._price_stream.get_price(coin)
-                    if price > 0:
-                        if t.direction == 'SHORT':
-                            pnl_pct = (t.entry_price - price) / t.entry_price * 100
-                        else:
-                            pnl_pct = (price - t.entry_price) / t.entry_price * 100
-                        roi = pnl_pct * t.leverage
-                        held_min = (time.time() - t.entry_time) / 60
-                        pos_lines.append(f"  {t.direction} {coin} {t.leverage}x: ROI {roi:+.1f}%, held {held_min:.0f}min")
-
-            profi_decision = self._profi._call_simple([{
-                "role": "user",
-                "content": f"""BREAKING NEWS: {title}
-Direction: {news_dir} | Impact: {impact}/10
-
-Your open positions that may be affected:
-{chr(10).join(pos_lines)}
-
-Is this news SYSTEMIC (affects whole market) or ISOLATED (one exchange/coin)?
-For each position decide: CLOSE or HOLD.
-
-Reply JSON: {{"analysis": "brief reason", "decisions": {{"COIN": "CLOSE" or "HOLD", ...}}}}"""
-            }], max_tokens=500)
-
-            logger.info(f"PROFI NEWS DECISION: {profi_decision[:200]}")
-
-            # Parse Profi's decision
-            close_list = []
-            hold_list = []
-            try:
-                import json as _json
-                start = profi_decision.find('{')
-                end = profi_decision.rfind('}') + 1
-                if start >= 0 and end > start:
-                    decision = _json.loads(profi_decision[start:end])
-                    decisions = decision.get('decisions', {})
-                    for coin, action in decisions.items():
-                        if action.upper() == 'CLOSE' and coin in self._tracked:
-                            close_list.append(coin)
-                        else:
-                            hold_list.append(coin)
-            except Exception:
-                # If parsing fails, be safe: close all (fallback to old behavior)
-                logger.warning("Failed to parse Profi news decision — fallback: close all")
-                close_list = close_coins
-
-            # Execute Profi's decisions
-            if close_list:
-                for coin in close_list:
-                    if coin in self._tracked:
-                        price = self._price_stream.get_price(coin)
-                        if price > 0:
-                            _, pnl = self._tracked[coin].update(price)
-                            self._close_trade(coin, 'NEWS_PROFI_CLOSE', pnl)
-
-            self._notify(
-                f"NEWS: {news_dir} ({impact}/10)",
-                f"Profi decided:\n"
-                f"  CLOSE: {close_list or 'none'}\n"
-                f"  HOLD: {hold_list or 'none'}\n"
-                f"Cancelled pending: {cancelled_pending or 'none'}\n"
-                f"{title}")
+                    f"NEWS: {signal['direction']}",
+                    f"Impact: {signal['impact']}/10\n"
+                    f"Closed: {close_coins}\n"
+                    f"Cancelled pending: {cancelled_pending or 'none'}\n"
+                    f"{signal['title'][:80]}")
 
             # Use sentiment to adjust regime confidence
             sentiment = self._news_reactor.get_market_sentiment()
@@ -1281,169 +1154,6 @@ Reply ONLY one word: "HOLD" or "CLOSE" and the SPECIFIC thing that broke."""
             except Exception as e:
                 logger.debug(f"Profi review {coin}: {e}")
 
-    def _position_guardian(self):
-        """Separate thread: monitors ALL positions + market direction continuously.
-        Detects reversal patterns and calls Profi to confirm before acting.
-        """
-        logger.info("Guardian: monitoring positions and market direction")
-        portfolio_peak_pnl = 0.0
-        last_profi_call = 0
-        PROFI_COOLDOWN = 300  # max 1 Profi call per 5 min
-
-        while self._running:
-            try:
-                time.sleep(10)  # check every 10 seconds
-                if not self._tracked:
-                    continue
-
-                # Compute portfolio unrealized PnL
-                total_roi = 0
-                positions_negative = 0
-                positions_positive = 0
-                position_details = []
-
-                for coin, tracked in list(self._tracked.items()):
-                    price = self._price_stream.get_price(coin)
-                    if price <= 0:
-                        continue
-                    if tracked.direction == 'SHORT':
-                        pnl_pct = (tracked.entry_price - price) / tracked.entry_price
-                    else:
-                        pnl_pct = (price - tracked.entry_price) / tracked.entry_price
-                    roi = pnl_pct * tracked.leverage * 100
-
-                    if roi < -2.0:
-                        positions_negative += 1
-                    elif roi > 1.0:
-                        positions_positive += 1
-                    total_roi += roi
-                    position_details.append(f"{tracked.direction} {coin} ROI={roi:+.1f}%")
-
-                # Update portfolio peak
-                if total_roi > portfolio_peak_pnl:
-                    portfolio_peak_pnl = total_roi
-
-                portfolio_drawdown = portfolio_peak_pnl - total_roi
-
-                # PATTERN DETECTION
-                trigger = False
-                reason = ""
-
-                # Pattern 1: 3+ positions negative simultaneously
-                if positions_negative >= 3 and positions_positive == 0:
-                    trigger = True
-                    reason = f"MASS DECLINE: {positions_negative} positions below -2% ROI, 0 positive"
-
-                # Pattern 2: Portfolio drawdown from peak
-                if portfolio_drawdown > 15.0 and len(self._tracked) >= 3:
-                    trigger = True
-                    reason = f"PORTFOLIO DRAWDOWN: {portfolio_drawdown:.1f}% from peak (peak={portfolio_peak_pnl:.1f}%)"
-
-                if not trigger:
-                    continue
-
-                # Cooldown: don't spam Profi
-                now = time.time()
-                if now - last_profi_call < PROFI_COOLDOWN:
-                    continue
-
-                logger.warning(f"GUARDIAN ALERT: {reason}")
-                logger.info(f"GUARDIAN positions: {', '.join(position_details)}")
-
-                # Call Profi for confirmation
-                try:
-                    # Build macro context
-                    _gc = sqlite3.connect(str(DB_PATH))
-                    parts = []
-                    r = _gc.execute("SELECT close FROM prices WHERE coin='BTC' AND timeframe='4h' ORDER BY timestamp DESC LIMIT 42").fetchall()
-                    if len(r) >= 42: parts.append(f"BTC_7d={((r[0][0]/r[-1][0])-1)*100:+.1f}%")
-                    r = _gc.execute("SELECT value FROM fear_greed ORDER BY date DESC LIMIT 1").fetchone()
-                    if r: parts.append(f"F&G={r[0]}")
-                    r = _gc.execute("SELECT rate FROM funding_rates WHERE coin='BTC' ORDER BY timestamp DESC LIMIT 1").fetchone()
-                    if r and r[0] is not None: parts.append(f"funding={r[0]*100:+.3f}%")
-                    _gc.close()
-                    macro = " | ".join(parts) if parts else "N/A"
-
-                    positions_str = "\n".join(position_details)
-                    pending_str = ", ".join(f"{po.direction} {c}" for c, po in self._pending_orders.items()) if self._pending_orders else "none"
-
-                    profi_response = self._profi._call_simple([{
-                        "role": "user",
-                        "content": f"""GUARDIAN ALERT: {reason}
-
-MACRO: {macro}
-Open positions:
-{positions_str}
-Pending orders: {pending_str}
-
-Is this a REAL REVERSAL or temporary PULLBACK?
-If reversal: which pending orders should be cancelled?
-
-Reply JSON: {{"verdict": "REVERSAL" or "PULLBACK", "cancel_pending": true/false, "reason": "brief"}}"""
-                    }], max_tokens=200)
-
-                    last_profi_call = now
-                    logger.info(f"GUARDIAN PROFI: {profi_response[:200] if profi_response else 'no response'}")
-
-                    # Parse response
-                    if profi_response and 'REVERSAL' in profi_response.upper():
-                        # Determine dominant position direction
-                        longs = sum(1 for t in self._tracked.values() if t.direction == 'LONG')
-                        shorts = sum(1 for t in self._tracked.values() if t.direction == 'SHORT')
-                        losing_dir = 'LONG' if longs > shorts else 'SHORT'
-
-                        logger.warning(f"GUARDIAN: Profi confirmed REVERSAL — closing {losing_dir} positions + pending + rescan")
-
-                        # 1. Close ALL positions in losing direction
-                        closed_count = 0
-                        for coin in list(self._tracked.keys()):
-                            tracked = self._tracked.get(coin)
-                            if tracked and tracked.direction == losing_dir:
-                                price = self._price_stream.get_price(coin)
-                                if price > 0:
-                                    _, pnl = tracked.update(price)
-                                    self._close_trade(coin, 'GUARDIAN_REVERSAL', pnl)
-                                    closed_count += 1
-
-                        # 2. Cancel pending in losing direction
-                        cancelled = 0
-                        for coin in list(self._pending_orders.keys()):
-                            po = self._pending_orders.get(coin)
-                            if po and po.direction == losing_dir:
-                                try:
-                                    self.exchange.cancel_order(po.order_id, coin)
-                                except Exception:
-                                    pass
-                                self._pending_orders.pop(coin, None)
-                                cancelled += 1
-
-                        logger.info(f"GUARDIAN: closed {closed_count} {losing_dir} positions, "
-                                   f"cancelled {cancelled} {losing_dir} pending")
-                        self._notify("GUARDIAN: REVERSAL ACTION",
-                                    f"{reason}\nClosed {closed_count} {losing_dir} positions\n"
-                                    f"Cancelled {cancelled} pending\nTriggering rescan...")
-
-                        # 3. Immediate rescan with fresh direction
-                        try:
-                            logger.info("GUARDIAN: triggering immediate rescan")
-                            self._open_new_positions()
-                        except Exception as e:
-                            logger.warning(f"Guardian rescan error: {e}")
-
-                        # Reset peak for fresh tracking
-                        portfolio_peak_pnl = 0.0
-
-                    else:
-                        logger.info("GUARDIAN: Profi says PULLBACK — holding positions, SL/trailing will handle")
-                        portfolio_peak_pnl = total_roi  # reset to avoid re-trigger
-
-                except Exception as e:
-                    logger.debug(f"Guardian Profi call error: {e}")
-
-            except Exception as e:
-                logger.debug(f"Guardian error: {e}")
-                time.sleep(30)
-
     def _manage_positions(self):
         """Fallback: check positions using REST (if WS down)."""
         for coin in list(self._tracked.keys()):
@@ -1541,8 +1251,11 @@ Reply JSON: {{"verdict": "REVERSAL" or "PULLBACK", "cancel_pending": true/false,
 
     def _open_new_positions(self):
         """FORTIX v4: Hourly level-based scan → limit orders at S/R levels."""
-        # H16 UTC skip removed — data shows -0.013% avg (not significant).
-        # Profi now decides skip via new prompt (UNCERTAIN → empty []).
+        # Rule 48: H16 UTC (US open) = systematic trap, 53% SL rate
+        current_hour_utc = datetime.now(timezone.utc).hour
+        if current_hour_utc == 16:
+            logger.info("H16 UTC skip (Rule 48: US open trap)")
+            return
 
         self._sync_with_exchange()
 
@@ -1646,31 +1359,35 @@ Reply JSON: {{"verdict": "REVERSAL" or "PULLBACK", "cancel_pending": true/false,
         # Get learning feedback from journal
         feedback = self._journal.build_scan_feedback()
 
-        # Step 2: Opus analyzes ALL coins — dynamic batches of 8
+        # Step 2: Opus finds level setups — 2 batches for wider coverage
         setups = []
-        batch_size = 8
 
-        for i in range(0, len(coins_with_levels), batch_size):
-            batch = coins_with_levels[i:i + batch_size]
-            if not batch:
-                break
-            try:
-                batch_setups = self._profi.find_level_setups(
-                    coins=batch, levels_data=levels_data,
-                    regime=regime, open_positions=pos_info,
-                    sl_history=self._coin_cooldown,
-                    trade_feedback=feedback
-                )
-                if batch_setups:
-                    setups.extend(batch_setups)
-            except Exception as e:
-                logger.warning(f"Opus batch {i//batch_size + 1} error: {e}")
+        # Batch 1: first 8 coins (with charts)
+        batch1 = coins_with_levels[:8]
+        s1 = self._profi.find_level_setups(
+            coins=batch1, levels_data=levels_data,
+            regime=regime, open_positions=pos_info,
+            sl_history=self._coin_cooldown,
+            trade_feedback=feedback
+        )
+        if s1:
+            setups.extend(s1)
+
+        # Batch 2: next 8 coins (with charts) — if we have more
+        batch2 = coins_with_levels[8:16]
+        if batch2:
+            s2 = self._profi.find_level_setups(
+                coins=batch2, levels_data=levels_data,
+                regime=regime, open_positions=pos_info,
+                sl_history=self._coin_cooldown,
+                trade_feedback=feedback
+            )
+            if s2:
+                setups.extend(s2)
 
         if not setups:
             logger.info("Opus: no setups at current levels")
             return
-
-        setups.sort(key=lambda s: float(s.get('confidence', 0)), reverse=True)
 
         logger.info(f"Opus: {len(setups)} level setups → placing limit orders")
 
@@ -1730,15 +1447,14 @@ Reply JSON: {{"verdict": "REVERSAL" or "PULLBACK", "cancel_pending": true/false,
                 logger.warning(f"Leverage {coin}: {e}")
                 continue
 
-            # Calculate position size — scaled by Profi's per-setup confidence
-            self._last_confidence = conf
+            # Calculate position size
             amount = self._calculate_position_size(coin, entry, lev)
             if amount <= 0:
                 logger.info(f"{coin}: no budget for limit order")
                 continue
 
-            # PROFI CONTROLS SL/TP — він бачить walls, S/R, ATR, per-coin optimal params.
-            # Fallback: якщо Profi values невалідні → ATR × 0.8, R:R 2.0
+            # ATR-based SL/TP — matches simulation settings that produced +302% PnL
+            # Simulation: SL = 0.8× ATR, TP = R:R 1.8x (= 1.44× ATR)
             import numpy as np
             try:
                 atr_rows = sqlite3.connect(str(DB_PATH)).execute(
@@ -1748,24 +1464,15 @@ Reply JSON: {{"verdict": "REVERSAL" or "PULLBACK", "cancel_pending": true/false,
             except Exception:
                 coin_atr = 0.01
 
-            # Validate Profi's SL/TP
-            profi_sl_valid = sl > 0 and (
-                (direction == 'LONG' and sl < entry) or
-                (direction == 'SHORT' and sl > entry))
-            profi_tp_valid = tp > 0 and (
-                (direction == 'LONG' and tp > entry) or
-                (direction == 'SHORT' and tp < entry))
+            sl_dist = coin_atr * 0.8   # 0.8× ATR (simulation setting)
+            tp_dist = sl_dist * 2.0     # R:R 2.0x (matches simulation that produced +302%)
 
-            if not profi_sl_valid or not profi_tp_valid:
-                sl_dist = coin_atr * 0.8
-                tp_dist = sl_dist * 2.0
-                if direction == 'LONG':
-                    sl = round(entry * (1 - sl_dist), 6)
-                    tp = round(entry * (1 + tp_dist), 6)
-                else:
-                    sl = round(entry * (1 + sl_dist), 6)
-                    tp = round(entry * (1 - tp_dist), 6)
-                logger.info(f"{coin}: Profi SL/TP invalid, using ATR fallback")
+            if direction == 'LONG':
+                sl = round(entry * (1 - sl_dist), 6)
+                tp = round(entry * (1 + tp_dist), 6)
+            else:
+                sl = round(entry * (1 + sl_dist), 6)
+                tp = round(entry * (1 - tp_dist), 6)
 
             # Smart entry: BTC momentum decides AGGRESSIVE vs PATIENT
             # AGGRESSIVE = live price (fills immediately), PATIENT = Opus entry (waits)
@@ -2374,8 +2081,74 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
 
         # Start position guardian thread
         import threading
-        guardian = threading.Thread(target=self._position_guardian, daemon=True)
-        guardian.start()
+        def _guardian():
+            """Monitors positions, detects reversal, calls Profi to confirm."""
+            logger.info("Guardian: monitoring positions and market direction")
+            portfolio_peak = 0.0
+            last_call = 0
+            while self._running:
+                try:
+                    time.sleep(10)
+                    if not self._tracked: continue
+                    total_roi = 0; neg = 0; pos = 0; details = []
+                    for coin, t in list(self._tracked.items()):
+                        p = self._price_stream.get_price(coin)
+                        if p <= 0: continue
+                        pnl = (p - t.entry_price) / t.entry_price if t.direction == 'LONG' else (t.entry_price - p) / t.entry_price
+                        roi = pnl * t.leverage * 100
+                        if roi < -2: neg += 1
+                        elif roi > 1: pos += 1
+                        total_roi += roi
+                        details.append(f"{t.direction} {coin} ROI={roi:+.1f}%")
+                    if total_roi > portfolio_peak: portfolio_peak = total_roi
+                    dd = portfolio_peak - total_roi
+                    trigger = (neg >= 3 and pos == 0) or (dd > 15 and len(self._tracked) >= 3)
+                    if not trigger: continue
+                    if time.time() - last_call < 300: continue
+                    reason = f"MASS DECLINE: {neg} neg" if neg >= 3 else f"DRAWDOWN: {dd:.1f}%"
+                    logger.warning(f"GUARDIAN ALERT: {reason}")
+                    logger.info(f"GUARDIAN positions: {', '.join(details)}")
+                    try:
+                        _gc = sqlite3.connect(str(DB_PATH))
+                        mp = []
+                        r = _gc.execute("SELECT close FROM prices WHERE coin='BTC' AND timeframe='4h' ORDER BY timestamp DESC LIMIT 42").fetchall()
+                        if len(r) >= 42: mp.append(f"BTC_7d={((r[0][0]/r[-1][0])-1)*100:+.1f}%")
+                        r = _gc.execute("SELECT value FROM fear_greed ORDER BY date DESC LIMIT 1").fetchone()
+                        if r: mp.append(f"F&G={r[0]}")
+                        _gc.close()
+                        resp = self._profi._call_simple([{"role": "user", "content":
+                            f"GUARDIAN: {reason}\\nMACRO: {' | '.join(mp)}\\nPositions: {', '.join(details)}\\n"
+                            f"REVERSAL or PULLBACK? Reply JSON: {{\"verdict\": \"REVERSAL\" or \"PULLBACK\"}}"}], max_tokens=150)
+                        last_call = time.time()
+                        logger.info(f"GUARDIAN PROFI: {resp[:150] if resp else 'no response'}")
+                        if resp and 'REVERSAL' in resp.upper():
+                            longs = sum(1 for t in self._tracked.values() if t.direction == 'LONG')
+                            shorts = sum(1 for t in self._tracked.values() if t.direction == 'SHORT')
+                            losing = 'LONG' if longs > shorts else 'SHORT'
+                            logger.warning(f"GUARDIAN: REVERSAL — closing {losing} + rescan")
+                            for c in list(self._tracked.keys()):
+                                tr = self._tracked.get(c)
+                                if tr and tr.direction == losing:
+                                    pr = self._price_stream.get_price(c)
+                                    if pr > 0:
+                                        _, pn = tr.update(pr)
+                                        self._close_trade(c, 'GUARDIAN_REVERSAL', pn)
+                            for c in list(self._pending_orders.keys()):
+                                po = self._pending_orders.get(c)
+                                if po and po.direction == losing:
+                                    try: self.exchange.cancel_order(po.order_id, c)
+                                    except: pass
+                                    self._pending_orders.pop(c, None)
+                            try: self._open_new_positions()
+                            except: pass
+                            portfolio_peak = 0
+                        else:
+                            portfolio_peak = total_roi
+                    except Exception as e:
+                        logger.debug(f"Guardian call: {e}")
+                except Exception:
+                    time.sleep(30)
+        threading.Thread(target=_guardian, daemon=True).start()
         logger.info("Position guardian thread started")
 
         while self._running:
@@ -2433,44 +2206,8 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                         pass
                     self._last_api_health_check = now
 
-                # Market read every 30 min — check if direction changed since orders placed
-                if now - getattr(self, '_last_market_read', 0) > 1800:
-                    try:
-                        strategy = self._profi.get_daily_strategy()
-                        if strategy:
-                            new_dir = strategy.get('preferred_direction', 'BOTH')
-                            self._profi_daily_strategy = strategy
-                            logger.info(f"MARKET READ: {strategy.get('regime')} | direction={new_dir}")
-
-                            # Check: do pending orders match new direction?
-                            if self._pending_orders and new_dir in ('LONG', 'SHORT'):
-                                contra_pending = [c for c, po in self._pending_orders.items()
-                                                  if po.direction != new_dir]
-                                if contra_pending:
-                                    logger.warning(f"DIRECTION FLIP: was {contra_pending[0]}'s dir, "
-                                                   f"now {new_dir} → cancelling {len(contra_pending)} "
-                                                   f"contra pending: {contra_pending}")
-                                    for coin in contra_pending:
-                                        po = self._pending_orders.get(coin)
-                                        if po and po.order_id:
-                                            try:
-                                                self.exchange.cancel_order(po.order_id, coin)
-                                            except Exception:
-                                                pass
-                                        self._pending_orders.pop(coin, None)
-
-                                    # Trigger immediate rescan with new direction
-                                    if len(contra_pending) >= 2:
-                                        logger.info("RESCAN: direction flipped, running immediate scan")
-                                        self._open_new_positions()
-                                        last_signal_scan = now
-                    except Exception:
-                        pass
-                    self._last_market_read = now
-
-                # Adaptive scan: 30min when no positions, 1h when active
-                scan_interval = 1800 if not self._tracked and not self._pending_orders else 3600
-                if now - last_signal_scan > scan_interval:
+                # Hourly scan: find S/R levels → place limit orders
+                if now - last_signal_scan > 3600:  # scan every 1 hour
                     self._open_new_positions()
                     self._last_successful_scan = now  # for API health check
                     last_signal_scan = now

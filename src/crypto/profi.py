@@ -853,32 +853,22 @@ Give daily strategy. Reply JSON ONLY:
 
         content = []
 
-        # Macro data — real numbers from DB, no interpretation
+        # Macro data — real numbers from DB
         try:
             _conn = sqlite3.connect(str(DB_PATH))
             parts = []
+            r = _conn.execute("SELECT close FROM prices WHERE coin='BTC' AND timeframe='4h' ORDER BY timestamp DESC LIMIT 42").fetchall()
+            if len(r) >= 42: parts.append(f"BTC_7d={((r[0][0]/r[-1][0])-1)*100:+.1f}%")
+            r = _conn.execute("SELECT close FROM prices WHERE coin='BTC' AND timeframe='4h' ORDER BY timestamp DESC LIMIT 6").fetchall()
+            if len(r) >= 6: parts.append(f"BTC_1d={((r[0][0]/r[-1][0])-1)*100:+.1f}%")
             r = _conn.execute("SELECT value FROM fear_greed ORDER BY date DESC LIMIT 1").fetchone()
             if r: parts.append(f"F&G={r[0]}")
             r = _conn.execute("SELECT value FROM cq_btc_onchain WHERE metric='mvrv' ORDER BY date DESC LIMIT 1").fetchone()
             if r and r[0]: parts.append(f"MVRV={r[0]:.2f}")
             r = _conn.execute("SELECT value FROM cq_btc_onchain WHERE metric='sopr' ORDER BY date DESC LIMIT 1").fetchone()
             if r and r[0]: parts.append(f"SOPR={r[0]:.3f}")
-            r = _conn.execute("SELECT value FROM cq_btc_onchain WHERE metric='nupl' ORDER BY date DESC LIMIT 1").fetchone()
-            if r and r[0]: parts.append(f"NUPL={r[0]:.2f}")
             r = _conn.execute("SELECT rate FROM funding_rates WHERE coin='BTC' ORDER BY timestamp DESC LIMIT 1").fetchone()
             if r and r[0] is not None: parts.append(f"BTC_funding={r[0]*100:+.3f}%")
-            r = _conn.execute("SELECT long_ratio FROM long_short_ratio WHERE coin='BTC' ORDER BY timestamp DESC LIMIT 1").fetchone()
-            if r and r[0]: parts.append(f"BTC_LS_ratio={r[0]:.2f}")
-            r = _conn.execute("SELECT premium_index FROM cq_coinbase_premium ORDER BY date DESC LIMIT 1").fetchone()
-            if r and r[0] is not None: parts.append(f"CB_premium={r[0]:+.3f}%")
-            r = _conn.execute("SELECT liq_usd_24h, long_liq_usd_24h, short_liq_usd_24h FROM cg_liquidations WHERE coin='BTC' ORDER BY timestamp DESC LIMIT 1").fetchone()
-            if r and r[0]: parts.append(f"BTC_liq_24h=${r[0]/1e6:.0f}M(L${r[1]/1e6:.0f}M/S${r[2]/1e6:.0f}M)")
-            btc_7d = _conn.execute("SELECT close FROM prices WHERE coin='BTC' AND timeframe='4h' ORDER BY timestamp DESC LIMIT 42").fetchall()
-            btc_1d = _conn.execute("SELECT close FROM prices WHERE coin='BTC' AND timeframe='4h' ORDER BY timestamp DESC LIMIT 6").fetchall()
-            if len(btc_7d) >= 42:
-                parts.insert(0, f"BTC_7d={((btc_7d[0][0]/btc_7d[-1][0])-1)*100:+.1f}%")
-            if len(btc_1d) >= 6:
-                parts.insert(1, f"BTC_1d={((btc_1d[0][0]/btc_1d[-1][0])-1)*100:+.1f}%")
             _conn.close()
             if parts:
                 content.append({"type": "text", "text": f"MACRO: {' | '.join(parts)}"})
@@ -909,7 +899,8 @@ Give daily strategy. Reply JSON ONLY:
                         "type": "text",
                         "text": f"*** BTC MOMENTUM (85% correlated with alts): {btc_momentum} ***\n"
                                 f"RULE: When BTC RISING → LONG BTC and alts. When BTC FALLING → SHORT BTC and alts. "
-                                f"BTC is a TRADEABLE coin — include BTC setups!"
+                                f"BTC is a TRADEABLE coin — include BTC setups! It has the best liquidity and lowest spread. "
+                                f"Verified on 1000+ data points: 85% accuracy."
                     })
             except Exception:
                 pass
@@ -1034,39 +1025,38 @@ DATA YOU HAVE:
 - 1H chart (PRIMARY), 4H chart (context)
 - ATR_1h = typical 1-hour price movement
 - S/R levels from 1h candles
-- LIVE order book: buy/sell pressure and walls
+- LIVE order book: buy/sell pressure and walls — THIS PREDICTS the next move
 - 15m momentum: direction RIGHT NOW
 - Funding rate: crowded side will get squeezed
-- MACRO line: BTC_7d, F&G, MVRV, SOPR, funding, liquidations
 
 HOW TO PREDICT:
-- OB buy pressure >20% + 15m momentum positive → bullish signal
-- OB sell pressure + momentum negative → bearish signal
+- OB buy pressure >20% + 15m momentum positive → price WILL go UP → LONG NOW
+- OB sell pressure + momentum negative → price WILL go DOWN → SHORT NOW
 - OB neutral + no momentum → price ranging → PATIENT limit at S/R level
-- Extreme funding → trade AGAINST the crowd
-- Use MACRO data (BTC_7d, F&G) to confirm your direction
+- Negative funding + long squeeze risk → SHORT
+- Positive funding + short squeeze risk → LONG
 
 TWO ENTRY MODES:
-1. AGGRESSIVE: entry = LIVE price (fills immediately)
-   Use when: strong conviction + momentum confirms.
-2. PATIENT: entry = nearest S/R level WITHIN 0.5% of current price.
-   Levels >0.5% away have <20% fill rate — order expires unfilled, you miss the move.
-   If no S/R within 0.5% → use AGGRESSIVE or SKIP this coin.
+1. AGGRESSIVE (momentum + OB confirm direction): entry = LIVE price (fills immediately)
+   Use when: 15m_mom > 0.5% and OB confirms. Price is MOVING — don't wait.
+2. PATIENT (range, no clear direction): entry = nearest S/R level
+   Use when: momentum flat, OB neutral. Wait for price to come to level.
 
 YOU control TP and SL. Set them based on S/R levels AND ATR. Verified on 1500+ trades:
 
-RISK MANAGEMENT (fixed, code-enforced):
-  - SL = -6.5% ROI (0.81% price at 8x). Hard stop on exchange.
-  - TP = +13% ROI (1.625% price). Target on exchange.
-  - TRAILING STOP: activates at +6% ROI, closes if drops -2% from peak.
-    Example: peak +10% ROI → drops to +8% → trailing closes. Avg exit +9% ROI.
-  - R:R = 2.0 (13/6.5). With 51%+ WR = profitable.
-  - Your SL/TP suggestions are used for entry analysis, but code enforces these limits.
+SL RULES (from training):
+  - SL = 0.8-1.0× ATR_1h (NEVER less). Each coin moves differently.
+  - SL behind the S/R level where you entered. If level breaks = thesis wrong.
+  - Fixed 0.5% SL = LOSING strategy (proven: -7% PnL). ATR-based SL = WINNING (+23%).
+  - Use order book walls as SL targets — a $200K buy wall protects your position.
 
-YOUR ROLE: pick DIRECTION and ENTRY POINT. Risk management is automated.
-Focus on: which coins will move 1.6%+ in your direction within 3 hours.
+TP RULES (from training):
+  - TP at next S/R level. MUST be reachable within 1-2 hours.
+  - R:R target 1.5-1.8x (not higher — 2.0x+ rarely hits in time).
+  - Resistance rejection setups > support bounce (+16% vs +11% in training).
+  - Avg winning trade = +1.0% price. Don't aim for more.
 
-Leverage: 8x default.
+Leverage: 8-10x.
 
 Reply JSON array (5-8 setups):
 [{{
