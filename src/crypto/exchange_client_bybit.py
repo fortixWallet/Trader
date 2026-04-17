@@ -404,7 +404,7 @@ class BybitClient:
                 'category': 'linear',
                 'symbol': symbol.replace('/', '').replace(':USDT', ''),
                 'trailingStop': str(round(trailing_distance, 4)),
-                'activePrice': str(round(activation_price, 2)) if activation_price > 0 else '',
+                'activePrice': str(round(activation_price, 6)) if activation_price > 0 else '',
                 'positionIdx': 0,
             })
             logger.info(f"Trailing stop set {coin}: distance=${trailing_distance:.4f} "

@@ -1664,7 +1664,7 @@ Reply ONLY one word: "HOLD" or "CLOSE" and the SPECIFIC thing that broke."""
                 size=fill_amount, leverage=po.leverage, entry_time=time.time(),
                 sl_price=po.sl_price, tp_price=po.tp_price,
                 reason=po.reason,
-                target_pct=abs(po.tp_price - fill_price) / fill_price if fill_price > 0 else 0.01,
+                target_pct=abs(po.tp_price - fill_price) / fill_price if (fill_price > 0 and po.tp_price > 0) else 0.10 / po.leverage,
                 sl_pct=abs(po.sl_price - fill_price) / fill_price if fill_price > 0 else 0.01,
                 max_hold_hours=8
             )
@@ -1684,10 +1684,10 @@ Reply ONLY one word: "HOLD" or "CLOSE" and the SPECIFIC thing that broke."""
                 else fill_price * (1 - 0.10 / po.leverage)
             trail_distance = fill_price * 0.02 / po.leverage  # 2% ROI → price distance
             try:
-                self.exchange.set_trailing_stop(coin, trail_distance, trail_activation)
-                trail_status = "TRAILING ON EXCHANGE"
+                ok = self.exchange.set_trailing_stop(coin, trail_distance, trail_activation)
+                trail_status = "TRAILING ON EXCHANGE" if ok else "trailing FAILED (code-only)"
             except Exception:
-                trail_status = "trailing CODE-ONLY"
+                trail_status = "trailing FAILED (code-only)"
 
             logger.info(f"FILLED #{self._trade_count}: {po.direction} {coin} "
                        f"{fill_amount}@${fill_price:.4f} {po.leverage}x "
