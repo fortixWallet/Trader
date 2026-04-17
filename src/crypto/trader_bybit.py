@@ -137,8 +137,8 @@ class TrackedPosition:
         if roi > self.peak_pnl:
             self.peak_pnl = roi
 
-        # Trailing stop: activation +6% ROI, drop -2% from peak
-        if self.peak_pnl >= 6.0:
+        # Trailing stop: activation +8% ROI, drop -2% from peak (tested best on 210 trades)
+        if self.peak_pnl >= 8.0:
             self.trailing_active = True
         if self.trailing_active and roi <= self.peak_pnl - 2.0:
             return 'TRAILING_STOP', pnl_pct
