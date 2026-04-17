@@ -2085,71 +2085,65 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
         last_signal_scan = 0
         scan_count = 0
 
-        # Start position guardian thread
+        # Guardian v2: monitors BTC direction, cancels contra-pending. NEVER touches open positions.
         import threading
-        def _guardian():
-            """Monitors positions, detects reversal, calls Profi to confirm."""
-            logger.info("Guardian: monitoring positions and market direction")
-            portfolio_peak = 0.0
-            last_call = 0
+        from collections import deque
+        def _guardian_v2():
+            btc_prices = deque(maxlen=90)  # 90 × 10sec = 15 min window
+            last_cancel = 0
+            logger.info("Guardian v2: monitoring BTC for pending protection (no position closing)")
             while self._running:
                 try:
                     time.sleep(10)
-                    if not self._tracked: continue
-                    total_roi = 0; neg = 0; pos = 0; details = []
-                    for coin, t in list(self._tracked.items()):
-                        p = self._price_stream.get_price(coin)
-                        if p <= 0: continue
-                        pnl = (p - t.entry_price) / t.entry_price if t.direction == 'LONG' else (t.entry_price - p) / t.entry_price
-                        roi = pnl * t.leverage * 100
-                        if roi < -2: neg += 1
-                        elif roi > 1: pos += 1
-                        total_roi += roi
-                        details.append(f"{t.direction} {coin} ROI={roi:+.1f}%")
-                    if total_roi > portfolio_peak: portfolio_peak = total_roi
-                    dd = portfolio_peak - total_roi
-                    trigger = (neg >= 3 and pos == 0) or (dd > 15 and len(self._tracked) >= 3)
-                    if not trigger: continue
-                    if time.time() - last_call < 300: continue
-                    reason = f"MASS DECLINE: {neg} neg" if neg >= 3 else f"DRAWDOWN: {dd:.1f}%"
-                    logger.warning(f"GUARDIAN ALERT: {reason}")
-                    logger.info(f"GUARDIAN positions: {', '.join(details)}")
-                    try:
-                        _gc = sqlite3.connect(str(DB_PATH))
-                        mp = []
-                        r = _gc.execute("SELECT close FROM prices WHERE coin='BTC' AND timeframe='4h' ORDER BY timestamp DESC LIMIT 42").fetchall()
-                        if len(r) >= 42: mp.append(f"BTC_7d={((r[0][0]/r[-1][0])-1)*100:+.1f}%")
-                        r = _gc.execute("SELECT value FROM fear_greed ORDER BY date DESC LIMIT 1").fetchone()
-                        if r: mp.append(f"F&G={r[0]}")
-                        _gc.close()
-                        resp = self._profi._call_simple([{"role": "user", "content":
-                            f"GUARDIAN: {reason}\\nMACRO: {' | '.join(mp)}\\nPositions: {', '.join(details)}\\n"
-                            f"REVERSAL or PULLBACK? Reply JSON: {{\"verdict\": \"REVERSAL\" or \"PULLBACK\"}}"}], max_tokens=150)
-                        last_call = time.time()
-                        logger.info(f"GUARDIAN PROFI: {resp[:150] if resp else 'no response'}")
-                        if resp and 'REVERSAL' in resp.upper():
-                            # DON'T close positions — SL/trailing on exchange handle that.
-                            # Only cancel PENDING orders and rescan with fresh direction.
-                            cancelled = 0
-                            for c in list(self._pending_orders.keys()):
-                                po = self._pending_orders.get(c)
-                                if po:
-                                    try: self.exchange.cancel_order(po.order_id, c)
-                                    except: pass
-                                    self._pending_orders.pop(c, None)
-                                    cancelled += 1
-                            try: self._open_new_positions()
-                            except: pass
-                            portfolio_peak = 0
-                        else:
-                            portfolio_peak = total_roi
-                    except Exception as e:
-                        logger.debug(f"Guardian call: {e}")
+                    btc = self._price_stream.get_price('BTC')
+                    if btc <= 0: continue
+                    btc_prices.append(btc)
+                    if len(btc_prices) < 30: continue  # need 5 min minimum
+
+                    # BTC change from 15min ago
+                    price_15m_ago = btc_prices[0]
+                    btc_change = (btc - price_15m_ago) / price_15m_ago * 100
+
+                    if not self._pending_orders: continue
+                    if time.time() - last_cancel < 300: continue  # cooldown 5min
+
+                    # Check: do pending orders match BTC direction?
+                    long_pending = [c for c, po in self._pending_orders.items() if po.direction == 'LONG']
+                    short_pending = [c for c, po in self._pending_orders.items() if po.direction == 'SHORT']
+
+                    cancelled = []
+
+                    # BTC dropping >0.5% → cancel LONG pending
+                    if btc_change < -0.5 and long_pending:
+                        for c in long_pending:
+                            po = self._pending_orders.get(c)
+                            if po:
+                                try: self.exchange.cancel_order(po.order_id, c)
+                                except: pass
+                                self._pending_orders.pop(c, None)
+                                cancelled.append(f"LONG {c}")
+
+                    # BTC rising >0.5% → cancel SHORT pending
+                    if btc_change > 0.5 and short_pending:
+                        for c in short_pending:
+                            po = self._pending_orders.get(c)
+                            if po:
+                                try: self.exchange.cancel_order(po.order_id, c)
+                                except: pass
+                                self._pending_orders.pop(c, None)
+                                cancelled.append(f"SHORT {c}")
+
+                    if cancelled:
+                        last_cancel = time.time()
+                        logger.warning(f"GUARDIAN: BTC {btc_change:+.2f}% (15m) → cancelled {len(cancelled)} contra pending: {cancelled}")
+                        self._notify("GUARDIAN: Contra pending cancelled",
+                                    f"BTC {btc_change:+.2f}% (15m)\nCancelled: {', '.join(cancelled)}")
+
                 except Exception:
                     time.sleep(30)
-        # Guardian DISABLED — was closing winning positions. Needs redesign.
-        # threading.Thread(target=_guardian, daemon=True).start()
-        logger.info("Guardian DISABLED (needs redesign). SL/trailing on exchange protect positions.")
+
+        threading.Thread(target=_guardian_v2, daemon=True).start()
+        logger.info("Guardian v2 started (pending protection only)")
 
         while self._running:
             try:
