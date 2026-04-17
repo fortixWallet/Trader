@@ -761,7 +761,9 @@ class BybitTrader:
 
         confidence = getattr(self, '_last_confidence', 0.7)
         cb_factor = getattr(self, '_post_cb_size_factor', 1.0)
-        target_margin = min(budget * RISK_PER_POSITION * confidence * cb_factor, available)
+        # High-conf boost: 15% equity when conf >= 0.72, else 10%
+        risk = 0.15 if confidence >= 0.72 else RISK_PER_POSITION
+        target_margin = min(budget * risk * confidence * cb_factor, available)
         target_notional = target_margin * leverage
 
         info = self.exchange.get_contract_info(coin)
@@ -2466,8 +2468,9 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                         pass
                     self._last_market_read = now
 
-                # Hourly scan: find S/R levels → place limit orders
-                if now - last_signal_scan > 3600:  # orders every 1 hour
+                # Adaptive scan: 30min when no positions, 1h when active
+                scan_interval = 1800 if not self._tracked and not self._pending_orders else 3600
+                if now - last_signal_scan > scan_interval:
                     self._open_new_positions()
                     self._last_successful_scan = now  # for API health check
                     last_signal_scan = now
