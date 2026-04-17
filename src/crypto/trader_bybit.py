@@ -1460,35 +1460,31 @@ Reply ONLY one word: "HOLD" or "CLOSE" and the SPECIFIC thing that broke."""
         # Get learning feedback from journal
         feedback = self._journal.build_scan_feedback()
 
-        # Step 2: Opus finds level setups — 2 batches for wider coverage
+        # Step 2: Opus analyzes ALL coins — dynamic batches of 8
         setups = []
+        batch_size = 8
 
-        # Batch 1: first 8 coins (with charts)
-        batch1 = coins_with_levels[:8]
-        s1 = self._profi.find_level_setups(
-            coins=batch1, levels_data=levels_data,
-            regime=regime, open_positions=pos_info,
-            sl_history=self._coin_cooldown,
-            trade_feedback=feedback
-        )
-        if s1:
-            setups.extend(s1)
-
-        # Batch 2: next 8 coins (with charts) — if we have more
-        batch2 = coins_with_levels[8:16]
-        if batch2:
-            s2 = self._profi.find_level_setups(
-                coins=batch2, levels_data=levels_data,
-                regime=regime, open_positions=pos_info,
-                sl_history=self._coin_cooldown,
-                trade_feedback=feedback
-            )
-            if s2:
-                setups.extend(s2)
+        for i in range(0, len(coins_with_levels), batch_size):
+            batch = coins_with_levels[i:i + batch_size]
+            if not batch:
+                break
+            try:
+                batch_setups = self._profi.find_level_setups(
+                    coins=batch, levels_data=levels_data,
+                    regime=regime, open_positions=pos_info,
+                    sl_history=self._coin_cooldown,
+                    trade_feedback=feedback
+                )
+                if batch_setups:
+                    setups.extend(batch_setups)
+            except Exception as e:
+                logger.warning(f"Opus batch {i//batch_size + 1} error: {e}")
 
         if not setups:
             logger.info("Opus: no setups at current levels")
             return
+
+        setups.sort(key=lambda s: float(s.get('confidence', 0)), reverse=True)
 
         logger.info(f"Opus: {len(setups)} level setups → placing limit orders")
 
