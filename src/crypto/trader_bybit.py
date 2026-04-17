@@ -132,10 +132,26 @@ class TrackedPosition:
         else:
             pnl_pct = (current_price - self.entry_price) / self.entry_price
 
-        if pnl_pct > self.peak_pnl:
-            self.peak_pnl = pnl_pct
+        roi = pnl_pct * self.leverage * 100  # ROI in %
 
-        # Emergency backup only — exchange handles SL/TP
+        if roi > self.peak_pnl:
+            self.peak_pnl = roi
+
+        # Trailing stop: activation +6% ROI, drop -2% from peak
+        if self.peak_pnl >= 6.0:
+            self.trailing_active = True
+        if self.trailing_active and roi <= self.peak_pnl - 2.0:
+            return 'TRAILING_STOP', pnl_pct
+
+        # SL: -6.5% ROI
+        if roi <= -6.5:
+            return 'STOP_LOSS', pnl_pct
+
+        # TP: +13% ROI
+        if roi >= 13.0:
+            return 'TARGET_HIT', pnl_pct
+
+        # Emergency backup
         if pnl_pct <= EMERGENCY_STOP:
             return 'EMERGENCY_STOP', pnl_pct
 
