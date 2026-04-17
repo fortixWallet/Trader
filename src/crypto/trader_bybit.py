@@ -2242,7 +2242,7 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                     self._last_api_health_check = now
 
                 # Hourly scan: find S/R levels → place limit orders
-                if now - last_signal_scan > 3600:  # scan every 1 hour
+                if now - last_signal_scan > 1800:  # scan every 30 min — faster reaction to market changes
                     self._open_new_positions()
                     self._last_successful_scan = now  # for API health check
                     last_signal_scan = now
