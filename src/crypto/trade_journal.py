@@ -295,10 +295,11 @@ class TradeJournal:
     # === QUERY METHODS FOR OPUS ===
 
     def get_recent_results(self, n=10) -> str:
-        """Last N closed trades as string for scan prompt."""
+        """Last N closed trades as string for scan prompt, with entry context."""
         conn = self._conn()
         rows = conn.execute("""
-            SELECT direction, coin, pnl_usd, exit_reason, held_minutes, entry_type, leverage
+            SELECT direction, coin, pnl_usd, exit_reason, held_minutes, entry_type, leverage,
+                   regime, confidence, fill_ob_imbalance, fill_momentum_15m, fill_funding_rate
             FROM fortix_trades WHERE status='CLOSED'
             ORDER BY closed_at DESC LIMIT ?
         """, (n,)).fetchall()
@@ -308,11 +309,19 @@ class TradeJournal:
             return "No completed trades yet."
 
         lines = []
-        for d, coin, pnl, reason, mins, etype, lev in rows:
+        for row in rows:
+            d, coin, pnl, reason, mins, etype, lev = row[:7]
+            regime, conf, ob, mom, fund = row[7:12]
             pnl = pnl or 0
             mins = int(mins or 0)
             etype = etype or '?'
-            lines.append(f"  {d} {coin} {lev}x ({etype}): ${pnl:+.2f} [{reason}] {mins}min")
+            ctx = []
+            if regime: ctx.append(f"regime={regime}")
+            if ob is not None: ctx.append(f"OB={ob:+.0%}")
+            if mom is not None: ctx.append(f"mom={mom:+.1f}%")
+            if fund is not None: ctx.append(f"fund={fund*100:+.3f}%")
+            ctx_str = f" | {' '.join(ctx)}" if ctx else ""
+            lines.append(f"  {d} {coin} {lev}x ({etype}): ${pnl:+.2f} [{reason}] {mins}min{ctx_str}")
         return "LAST TRADES:\n" + "\n".join(lines)
 
     def get_stats(self, days=7) -> str:
@@ -387,12 +396,76 @@ class TradeJournal:
         return "\n".join(parts) if parts else "Not enough data yet."
 
     def build_scan_feedback(self) -> str:
-        """Complete feedback block for scan prompt."""
+        """Complete feedback block for scan prompt — includes auto-computed lessons."""
         recent = self.get_recent_results(10)
         stats = self.get_stats(7)
-        if recent == "No completed trades yet." and stats == "Not enough data yet.":
+        lessons = self._compute_today_lessons()
+        parts = []
+        if recent != "No completed trades yet.":
+            parts.append(recent)
+        if stats != "Not enough data yet.":
+            parts.append(stats)
+        if lessons:
+            parts.append(lessons)
+        return "\n\n".join(parts) if parts else ""
+
+    def _compute_today_lessons(self) -> str:
+        """Auto-compute patterns from today's trades — no Opus call."""
+        conn = self._conn()
+        rows = conn.execute("""
+            SELECT coin, direction, entry_type, pnl_usd, exit_reason, held_minutes, regime
+            FROM fortix_trades
+            WHERE status='CLOSED' AND DATE(closed_at)=DATE('now')
+        """).fetchall()
+        conn.close()
+
+        if len(rows) < 3:
             return ""
-        return f"{recent}\n\n{stats}"
+
+        lines = ["TODAY'S LESSONS (auto):"]
+
+        # 1. WR by entry type
+        patient = [(r[3], r[4]) for r in rows if r[2] and 'PATIENT' in r[2].upper()]
+        aggressive = [(r[3], r[4]) for r in rows if r[2] and 'AGGR' in r[2].upper()]
+        if patient and aggressive:
+            p_wr = sum(1 for p, _ in patient if p and p > 0) / len(patient) * 100
+            a_wr = sum(1 for p, _ in aggressive if p and p > 0) / len(aggressive) * 100
+            better = "PATIENT" if p_wr > a_wr else "AGGRESSIVE"
+            lines.append(f"  PATIENT: {p_wr:.0f}% WR ({len(patient)} trades). "
+                        f"AGGRESSIVE: {a_wr:.0f}% WR ({len(aggressive)} trades). → prefer {better}")
+
+        # 2. Recent SL pattern
+        recent_sl = [(r[0], r[1], r[6]) for r in rows if r[4] == 'STOP_LOSS']
+        if len(recent_sl) >= 2:
+            sl_dirs = [r[1] for r in recent_sl[-3:]]
+            sl_coins = [r[0] for r in recent_sl[-3:]]
+            if len(set(sl_dirs)) == 1:
+                lines.append(f"  Last {len(recent_sl[-3:])} SL: all {sl_dirs[0]} → direction may be wrong")
+            # Repeated coins
+            from collections import Counter
+            coin_counts = Counter(r[0] for r in recent_sl)
+            banned = [f"{c}({n}x)" for c, n in coin_counts.items() if n >= 2]
+            if banned:
+                lines.append(f"  BANNED today (2+ SL): {', '.join(banned)}")
+
+        # 3. Avg hold time: SL vs TP
+        sl_holds = [r[5] for r in rows if r[4] == 'STOP_LOSS' and r[5]]
+        tp_holds = [r[5] for r in rows if r[4] == 'TARGET_HIT' and r[5]]
+        if sl_holds and tp_holds:
+            avg_sl = sum(sl_holds) / len(sl_holds)
+            avg_tp = sum(tp_holds) / len(tp_holds)
+            lines.append(f"  Avg SL hold: {avg_sl:.0f}min. Avg TP hold: {avg_tp:.0f}min. "
+                        f"{'Fast SL = wrong direction' if avg_sl < avg_tp * 0.5 else ''}")
+
+        # 4. Direction WR
+        long_trades = [r for r in rows if r[1] == 'LONG']
+        short_trades = [r for r in rows if r[1] == 'SHORT']
+        if long_trades and short_trades:
+            l_wr = sum(1 for r in long_trades if r[3] and r[3] > 0) / len(long_trades) * 100
+            s_wr = sum(1 for r in short_trades if r[3] and r[3] > 0) / len(short_trades) * 100
+            lines.append(f"  LONG: {l_wr:.0f}% WR ({len(long_trades)}). SHORT: {s_wr:.0f}% WR ({len(short_trades)})")
+
+        return "\n".join(lines) if len(lines) > 1 else ""
 
     # === FOR DAILY ANALYSIS ===
 
