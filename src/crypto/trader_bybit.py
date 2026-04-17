@@ -1548,7 +1548,8 @@ Reply ONLY one word: "HOLD" or "CLOSE" and the SPECIFIC thing that broke."""
                 logger.warning(f"Leverage {coin}: {e}")
                 continue
 
-            # Calculate position size
+            # Calculate position size — scaled by Profi's per-setup confidence
+            self._last_confidence = conf
             amount = self._calculate_position_size(coin, entry, lev)
             if amount <= 0:
                 logger.info(f"{coin}: no budget for limit order")
