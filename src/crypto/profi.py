@@ -1039,12 +1039,14 @@ DATA YOU HAVE:
 - 15m momentum: direction RIGHT NOW
 - Funding rate: crowded side will get squeezed
 
-HOW TO PREDICT:
-- OB buy pressure >20% + 15m momentum positive → price WILL go UP → LONG NOW
-- OB sell pressure + momentum negative → price WILL go DOWN → SHORT NOW
+HOW TO DECIDE DIRECTION:
+- OB buy pressure >20% + 15m momentum positive → bullish signal, BUT check RSI and recent rally size before entering
+- OB sell pressure + momentum negative → bearish signal, BUT check if this is just a pullback in uptrend
 - OB neutral + no momentum → price ranging → PATIENT limit at S/R level
-- Negative funding + long squeeze risk → SHORT
-- Positive funding + short squeeze risk → LONG
+- Extreme funding (positive or negative) → crowded side will get squeezed → trade AGAINST the crowd
+- RSI >75 after multi-day rally → OVERBOUGHT, prefer SHORT or SKIP even if momentum positive
+- RSI <25 after multi-day drop → OVERSOLD, prefer LONG or SKIP even if momentum negative
+- ALWAYS check MACRO data (BTC_7d, F&G, MVRV) before deciding direction
 
 TWO ENTRY MODES:
 1. AGGRESSIVE (momentum + OB confirm direction): entry = LIVE price (fills immediately)
