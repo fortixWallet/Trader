@@ -949,9 +949,17 @@ class BybitTrader:
                 self._journal.record_close(tracked.trade_id, exit_price, pnl_pct, pnl_usd, reason, held_min)
 
             # Cooldown after SL — don't reopen same coin for 2 hours
-            if reason == 'STOP_LOSS':
+            if reason in ('STOP_LOSS', 'GUARDIAN_REVERSAL'):
                 self._coin_cooldown[coin] = time.time()
-                logger.info(f"COOLDOWN: {coin} on 2h cooldown after SL")
+                # Daily SL counter — 2 SL on same coin = ban for rest of day
+                daily_key = f"{coin}_{datetime.now(timezone.utc).strftime('%Y-%m-%d')}"
+                self._daily_sl_count = getattr(self, '_daily_sl_count', {})
+                self._daily_sl_count[daily_key] = self._daily_sl_count.get(daily_key, 0) + 1
+                if self._daily_sl_count[daily_key] >= 2:
+                    self._banned_coins.add(coin)
+                    logger.warning(f"DAILY BAN: {coin} — {self._daily_sl_count[daily_key]} SL today, banned until tomorrow")
+                else:
+                    logger.info(f"COOLDOWN: {coin} on 2h cooldown after SL ({self._daily_sl_count[daily_key]}/2 today)")
 
             self._closing_lock.discard(coin)
             return True
