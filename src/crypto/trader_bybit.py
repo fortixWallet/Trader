@@ -1539,11 +1539,8 @@ Reply JSON: {{"verdict": "REVERSAL" or "PULLBACK", "cancel_pending": true/false,
 
     def _open_new_positions(self):
         """FORTIX v4: Hourly level-based scan → limit orders at S/R levels."""
-        # Rule 48: H16 UTC (US open) = systematic trap, 53% SL rate
-        current_hour_utc = datetime.now(timezone.utc).hour
-        if current_hour_utc == 16:
-            logger.info("H16 UTC skip (Rule 48: US open trap)")
-            return
+        # H16 UTC skip removed — data shows -0.013% avg (not significant).
+        # Profi now decides skip via new prompt (UNCERTAIN → empty []).
 
         self._sync_with_exchange()
 
