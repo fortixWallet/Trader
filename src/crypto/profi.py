@@ -853,28 +853,6 @@ Give daily strategy. Reply JSON ONLY:
 
         content = []
 
-        # Macro data — real numbers from DB
-        try:
-            _conn = sqlite3.connect(str(DB_PATH))
-            parts = []
-            r = _conn.execute("SELECT close FROM prices WHERE coin='BTC' AND timeframe='4h' ORDER BY timestamp DESC LIMIT 42").fetchall()
-            if len(r) >= 42: parts.append(f"BTC_7d={((r[0][0]/r[-1][0])-1)*100:+.1f}%")
-            r = _conn.execute("SELECT close FROM prices WHERE coin='BTC' AND timeframe='4h' ORDER BY timestamp DESC LIMIT 6").fetchall()
-            if len(r) >= 6: parts.append(f"BTC_1d={((r[0][0]/r[-1][0])-1)*100:+.1f}%")
-            r = _conn.execute("SELECT value FROM fear_greed ORDER BY date DESC LIMIT 1").fetchone()
-            if r: parts.append(f"F&G={r[0]}")
-            r = _conn.execute("SELECT value FROM cq_btc_onchain WHERE metric='mvrv' ORDER BY date DESC LIMIT 1").fetchone()
-            if r and r[0]: parts.append(f"MVRV={r[0]:.2f}")
-            r = _conn.execute("SELECT value FROM cq_btc_onchain WHERE metric='sopr' ORDER BY date DESC LIMIT 1").fetchone()
-            if r and r[0]: parts.append(f"SOPR={r[0]:.3f}")
-            r = _conn.execute("SELECT rate FROM funding_rates WHERE coin='BTC' ORDER BY timestamp DESC LIMIT 1").fetchone()
-            if r and r[0] is not None: parts.append(f"BTC_funding={r[0]*100:+.3f}%")
-            _conn.close()
-            if parts:
-                content.append({"type": "text", "text": f"MACRO: {' | '.join(parts)}"})
-        except Exception:
-            pass
-
         # BTC momentum — strongest predictor (85% correlation with alts)
         exchange = getattr(self, '_exchange', None)
         btc_momentum = ""

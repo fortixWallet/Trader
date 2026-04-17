@@ -28,21 +28,21 @@
 
 *When BB width is minimal (squeeze), which way does it break?*
 
-**BTC:** BB squeeze → UP 55% / DOWN 45% (357 events)
-**ETH:** BB squeeze → UP 56% / DOWN 44% (405 events)
-**SOL:** BB squeeze → UP 54% / DOWN 46% (446 events)
-**BNB:** BB squeeze → UP 56% / DOWN 44% (363 events)
-**XRP:** BB squeeze → UP 47% / DOWN 53% (391 events)
-**ADA:** BB squeeze → UP 51% / DOWN 49% (425 events)
-**AVAX:** BB squeeze → UP 54% / DOWN 46% (440 events)
-**DOT:** BB squeeze → UP 48% / DOWN 52% (440 events)
-**LINK:** BB squeeze → UP 51% / DOWN 49% (446 events)
-**DOGE:** BB squeeze → UP 46% / DOWN 54% (422 events)
-**UNI:** BB squeeze → UP 47% / DOWN 53% (452 events)
-**AAVE:** BB squeeze → UP 45% / DOWN 55% (427 events)
-**LDO:** BB squeeze → UP 47% / DOWN 53% (445 events)
-**CRV:** BB squeeze → UP 44% / DOWN 56% (456 events)
-**RENDER:** BB squeeze → UP 51% / DOWN 49% (347 events)
+**BTC:** BB squeeze → UP 55% / DOWN 45% (356 events)
+**ETH:** BB squeeze → UP 56% / DOWN 44% (404 events)
+**SOL:** BB squeeze → UP 54% / DOWN 46% (445 events)
+**BNB:** BB squeeze → UP 57% / DOWN 43% (362 events)
+**XRP:** BB squeeze → UP 47% / DOWN 53% (390 events)
+**ADA:** BB squeeze → UP 51% / DOWN 49% (427 events)
+**AVAX:** BB squeeze → UP 54% / DOWN 46% (439 events)
+**DOT:** BB squeeze → UP 48% / DOWN 52% (439 events)
+**LINK:** BB squeeze → UP 51% / DOWN 49% (445 events)
+**DOGE:** BB squeeze → UP 47% / DOWN 53% (421 events)
+**UNI:** BB squeeze → UP 47% / DOWN 53% (451 events)
+**AAVE:** BB squeeze → UP 45% / DOWN 55% (426 events)
+**LDO:** BB squeeze → UP 48% / DOWN 52% (444 events)
+**CRV:** BB squeeze → UP 44% / DOWN 56% (455 events)
+**RENDER:** BB squeeze → UP 51% / DOWN 49% (351 events)
 
 
 ## Volume Spike (2x+) → Next Candle Direction
@@ -120,23 +120,23 @@
 
 **BTC:** | 3 red → reversal 57% (496 events), 3 green → reversal 55% (588 events) | 4 red → reversal 58% (213 events), 4 green → reversal 52% (262 events) | 5 red → reversal 58% (89 events), 5 green → reversal 55% (127 events)
 **ETH:** | 3 red → reversal 52% (588 events), 3 green → reversal 52% (612 events) | 4 red → reversal 51% (284 events), 4 green → reversal 50% (291 events) | 5 red → reversal 47% (138 events), 5 green → reversal 50% (145 events)
-**SOL:** | 3 red → reversal 51% (580 events), 3 green → reversal 54% (604 events) | 4 red → reversal 50% (286 events), 4 green → reversal 54% (279 events) | 5 red → reversal 51% (142 events), 5 green → reversal 58% (127 events)
-**DOGE:** | 3 red → reversal 52% (577 events), 3 green → reversal 49% (619 events) | 4 red → reversal 50% (278 events), 4 green → reversal 49% (314 events) | 5 red → reversal 55% (139 events), 5 green → reversal 49% (160 events)
+**SOL:** | 3 red → reversal 51% (578 events), 3 green → reversal 54% (603 events) | 4 red → reversal 50% (285 events), 4 green → reversal 54% (279 events) | 5 red → reversal 51% (142 events), 5 green → reversal 58% (127 events)
+**DOGE:** | 3 red → reversal 52% (577 events), 3 green → reversal 49% (618 events) | 4 red → reversal 50% (278 events), 4 green → reversal 49% (314 events) | 5 red → reversal 55% (139 events), 5 green → reversal 49% (160 events)
 
 
 ## Our Trade Autopsy — 60 Trades Analyzed
 
-### Winners (74 trades)
-  Avg hold: 44 min | Avg ML score: 0.0000
-  Exit reasons: {'TRAILING_STOP': 19, 'SHUTDOWN': 6, 'BREAKEVEN_STOP': 8, 'TARGET_HIT': 6, 'CIRCUIT_BREAKER': 3, 'PROFI_EXIT': 16, 'NEWS_REACTION': 6, 'TIME_EXIT': 10}
+### Winners (64 trades)
+  Avg hold: 23 min | Avg ML score: 0.0000
+  Exit reasons: {'TRAILING_STOP': 19, 'SHUTDOWN': 6, 'BREAKEVEN_STOP': 8, 'TARGET_HIT': 6, 'CIRCUIT_BREAKER': 3, 'PROFI_EXIT': 16, 'NEWS_REACTION': 6}
 
-### Losers (64 trades)
-  Avg hold: 39 min | Avg ML score: 0.0000
-  Exit reasons: {'SHUTDOWN': 14, 'CIRCUIT_BREAKER': 12, 'TIME_EXIT': 3, 'EMERGENCY_STOP': 3, 'STAGNANT': 1, 'PROFI_EXIT': 17, 'STOP_LOSS': 10, 'NEWS_REACTION': 4}
+### Losers (62 trades)
+  Avg hold: 35 min | Avg ML score: 0.0000
+  Exit reasons: {'SHUTDOWN': 14, 'CIRCUIT_BREAKER': 12, 'TIME_EXIT': 1, 'EMERGENCY_STOP': 3, 'STAGNANT': 1, 'PROFI_EXIT': 17, 'STOP_LOSS': 10, 'NEWS_REACTION': 4}
 
 ### Key Patterns Discovered:
-- LONG trades: WR 57% (67 trades)
-- SHORT trades: WR 51% (71 trades)
+- LONG trades: WR 53% (60 trades)
+- SHORT trades: WR 48% (66 trades)
 - Quick <1h: WR 54% (112 trades)
-- Medium 1-4h: WR 56% (25 trades)
+- Medium 1-4h: WR 31% (13 trades)
 - Long >4h: WR 0% (1 trades)
