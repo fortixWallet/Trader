@@ -1049,10 +1049,11 @@ HOW TO DECIDE DIRECTION:
 - ALWAYS check MACRO data (BTC_7d, F&G, MVRV) before deciding direction
 
 TWO ENTRY MODES:
-1. AGGRESSIVE (momentum + OB confirm direction): entry = LIVE price (fills immediately)
-   Use when: 15m_mom > 0.5% and OB confirms. Price is MOVING — don't wait.
-2. PATIENT (range, no clear direction): entry = nearest S/R level
-   Use when: momentum flat, OB neutral. Wait for price to come to level.
+1. AGGRESSIVE: entry = LIVE price (fills immediately)
+   Use when: strong conviction + momentum confirms.
+2. PATIENT: entry = nearest S/R level WITHIN 0.5% of current price.
+   Levels >0.5% away have <20% fill rate — order expires unfilled, you miss the move.
+   If no S/R within 0.5% → use AGGRESSIVE or SKIP this coin.
 
 YOU control TP and SL. Set them based on S/R levels AND ATR. Verified on 1500+ trades:
 
