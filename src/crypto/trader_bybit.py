@@ -2257,14 +2257,37 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                         pass
                     self._last_api_health_check = now
 
-                # Market read every 30 min — Profi updates regime understanding (no orders)
-                if now - getattr(self, '_last_market_read', 0) > 1800 and self._tracked:
+                # Market read every 30 min — check if direction changed since orders placed
+                if now - getattr(self, '_last_market_read', 0) > 1800:
                     try:
                         strategy = self._profi.get_daily_strategy()
                         if strategy:
+                            new_dir = strategy.get('preferred_direction', 'BOTH')
                             self._profi_daily_strategy = strategy
-                            logger.info(f"MARKET READ: {strategy.get('regime')} | "
-                                       f"direction={strategy.get('preferred_direction', 'BOTH')}")
+                            logger.info(f"MARKET READ: {strategy.get('regime')} | direction={new_dir}")
+
+                            # Check: do pending orders match new direction?
+                            if self._pending_orders and new_dir in ('LONG', 'SHORT'):
+                                contra_pending = [c for c, po in self._pending_orders.items()
+                                                  if po.direction != new_dir]
+                                if contra_pending:
+                                    logger.warning(f"DIRECTION FLIP: was {contra_pending[0]}'s dir, "
+                                                   f"now {new_dir} → cancelling {len(contra_pending)} "
+                                                   f"contra pending: {contra_pending}")
+                                    for coin in contra_pending:
+                                        po = self._pending_orders.get(coin)
+                                        if po and po.order_id:
+                                            try:
+                                                self.exchange.cancel_order(po.order_id, coin)
+                                            except Exception:
+                                                pass
+                                        self._pending_orders.pop(coin, None)
+
+                                    # Trigger immediate rescan with new direction
+                                    if len(contra_pending) >= 2:
+                                        logger.info("RESCAN: direction flipped, running immediate scan")
+                                        self._open_new_positions()
+                                        last_signal_scan = now
                     except Exception:
                         pass
                     self._last_market_read = now
