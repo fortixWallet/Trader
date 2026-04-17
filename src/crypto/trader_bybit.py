@@ -1215,23 +1215,41 @@ Reply JSON: {{"analysis": "brief reason", "decisions": {{"COIN": "CLOSE" or "HOL
                         "source": {"type": "base64", "media_type": "image/png",
                                    "data": charts['4h']}
                     })
+                # Get MACRO context for risk assessment
+                macro_ctx = ""
+                try:
+                    _rc = sqlite3.connect(str(DB_PATH))
+                    parts = []
+                    r = _rc.execute("SELECT close FROM prices WHERE coin='BTC' AND timeframe='4h' ORDER BY timestamp DESC LIMIT 42").fetchall()
+                    if len(r) >= 42: parts.append(f"BTC_7d={((r[0][0]/r[-1][0])-1)*100:+.1f}%")
+                    r = _rc.execute("SELECT value FROM fear_greed ORDER BY date DESC LIMIT 1").fetchone()
+                    if r: parts.append(f"F&G={r[0]}")
+                    r = _rc.execute("SELECT rate FROM funding_rates WHERE coin='BTC' ORDER BY timestamp DESC LIMIT 1").fetchone()
+                    if r and r[0] is not None: parts.append(f"BTC_fund={r[0]*100:+.3f}%")
+                    r = _rc.execute("SELECT liq_usd_24h, long_liq_usd_24h, short_liq_usd_24h FROM cg_liquidations WHERE coin='BTC' ORDER BY timestamp DESC LIMIT 1").fetchone()
+                    if r and r[0]: parts.append(f"Liq(L${r[1]/1e6:.0f}M/S${r[2]/1e6:.0f}M)")
+                    _rc.close()
+                    if parts: macro_ctx = f"\nMACRO: {' | '.join(parts)}"
+                except Exception:
+                    pass
+
+                # Count how many positions in same direction
+                same_dir = sum(1 for t in self._tracked.values() if t.direction == tracked.direction)
+
                 review_content.append({
                     "type": "text",
                     "text": f"""POSITION REVIEW — {tracked.direction} {coin} at ${tracked.entry_price:.4f}, {held_min:.0f} minutes ago.
-Original reason: "{tracked.reason}"
-Current PnL: {pnl_pct*100:+.2f}%
+Current PnL: {pnl_pct*100:+.2f}% | You have {same_dir} {tracked.direction} positions total.
+{macro_ctx}
 
-Your SPECIFIC thesis was: "{tracked.reason}"
+Original thesis: "{tracked.reason}"
 
-Has this SPECIFIC thesis BROKEN? Check:
-- If you said "price below MA20" → is price NOW above MA20? If still below → HOLD
-- If you said "dead cat bounce failure" → did price reclaim the bounce level? If still failed → HOLD
-- If you said "breakdown below support" → did price reclaim that support? If still below → HOLD
+RISK CHECK:
+1. Does MACRO support your {tracked.direction} direction? (BTC_7d trend, F&G)
+2. Are you fighting the macro trend with {same_dir} positions in same direction?
+3. Has your SPECIFIC thesis broken? (level reclaimed, pattern failed)
 
-You MUST hold unless the SPECIFIC pattern you identified has OBJECTIVELY broken.
-Being "unsure" is NOT a reason to close. Price fluctuation is NOT a reason to close.
-
-Reply ONLY one word: "HOLD" or "CLOSE" and the SPECIFIC thing that broke."""
+Reply: "HOLD" or "CLOSE — [reason]" """
                 })
 
                 result = self._profi._call_with_tools(
@@ -2248,14 +2266,16 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                     last_signal_scan = now
                     scan_count += 1
 
-                    # Every 2 scans (2 hours): Profi reviews positions + status log
-                    if scan_count % 2 == 0:
-                        self._profi_review_positions()
-                        eq = self._get_equity()
-                        pending_info = f" | pending={len(self._pending_orders)}" if self._pending_orders else ""
-                        logger.info(f"STATUS: {len(self._tracked)} positions{pending_info} | "
-                                   f"equity=${eq:.2f} | trades={self._trade_count} | "
-                                   f"pnl=${self._total_pnl:+.2f}")
+                    eq = self._get_equity()
+                    pending_info = f" | pending={len(self._pending_orders)}" if self._pending_orders else ""
+                    logger.info(f"STATUS: {len(self._tracked)} positions{pending_info} | "
+                               f"equity=${eq:.2f} | trades={self._trade_count} | "
+                               f"pnl=${self._total_pnl:+.2f}")
+
+                # Profi risk review every 30 min (was: every 2h)
+                if now - getattr(self, '_last_profi_review', 0) > 1800 and self._tracked:
+                    self._profi_review_positions()
+                    self._last_profi_review = now
 
                 # Daily retrain at 02:00 UTC
                 current_hour = datetime.now(timezone.utc).hour
