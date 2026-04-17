@@ -386,6 +386,35 @@ class BybitClient:
             logger.error(f"TP placement failed {coin}: {e}")
         return None
 
+    def set_trailing_stop(self, coin: str, trailing_distance: float,
+                          activation_price: float = 0) -> bool:
+        """Set trailing stop ON EXCHANGE — works even if bot offline.
+        trailing_distance: price distance from peak (e.g., 0.25% of price)
+        activation_price: price at which trailing activates (0 = immediate)
+        """
+        self._ensure_connected()
+        try:
+            symbol = self._symbol(coin)
+            params = {
+                'trailingStop': str(round(trailing_distance, 4)),
+            }
+            if activation_price > 0:
+                params['activePrice'] = str(round(activation_price, 2))
+            self._exchange.private_post_v5_position_trading_stop({
+                'category': 'linear',
+                'symbol': symbol.replace('/', '').replace(':USDT', ''),
+                'trailingStop': str(round(trailing_distance, 4)),
+                'activePrice': str(round(activation_price, 2)) if activation_price > 0 else '',
+                'positionIdx': 0,
+            })
+            logger.info(f"Trailing stop set {coin}: distance=${trailing_distance:.4f} "
+                       f"activation=${activation_price:.2f}" if activation_price else
+                       f"Trailing stop set {coin}: distance=${trailing_distance:.4f}")
+            return True
+        except Exception as e:
+            logger.warning(f"Trailing stop failed {coin}: {e}")
+            return False
+
     def cancel_order(self, order_id: str, coin: str) -> bool:
         """Cancel a pending order (limit, SL, or TP)."""
         self._ensure_connected()

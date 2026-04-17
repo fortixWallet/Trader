@@ -1679,16 +1679,26 @@ Reply ONLY one word: "HOLD" or "CLOSE" and the SPECIFIC thing that broke."""
             roi_tp = tracked.target_pct * po.leverage * 100
             roi_sl = tracked.sl_pct * po.leverage * 100
 
+            # Set trailing stop ON EXCHANGE: activation at +10% ROI, drop = 2% ROI in price
+            trail_activation = fill_price * (1 + 0.10 / po.leverage) if po.direction == 'LONG' \
+                else fill_price * (1 - 0.10 / po.leverage)
+            trail_distance = fill_price * 0.02 / po.leverage  # 2% ROI → price distance
+            try:
+                self.exchange.set_trailing_stop(coin, trail_distance, trail_activation)
+                trail_status = "TRAILING ON EXCHANGE"
+            except Exception:
+                trail_status = "trailing CODE-ONLY"
+
             logger.info(f"FILLED #{self._trade_count}: {po.direction} {coin} "
                        f"{fill_amount}@${fill_price:.4f} {po.leverage}x "
-                       f"SL=${po.sl_price:.4f} TP=${po.tp_price:.4f} "
-                       f"margin=${margin:.2f} [SL/TP ALREADY ON EXCHANGE]")
+                       f"SL=-6.5%ROI "
+                       f"margin=${margin:.2f} [{trail_status}]")
 
             self._notify(
                 f"FILLED: {po.direction} {coin} {po.leverage}x",
                 f"Entry: ${fill_price:.4f}\n"
-                f"SL: ${po.sl_price:.4f} (ROI -{roi_sl:.0f}%) ON EXCHANGE\n"
-                f"TP: ${po.tp_price:.4f} (ROI +{roi_tp:.0f}%) ON EXCHANGE\n"
+                f"SL: -6.5% ROI ON EXCHANGE\n"
+                f"Trailing: start +10% ROI, drop -2% ON EXCHANGE\n"
                 f"Margin: ${margin:.1f}\n"
                 f"Reason: {po.reason[:100]}"
             )
