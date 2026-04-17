@@ -2128,32 +2128,16 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                         last_call = time.time()
                         logger.info(f"GUARDIAN PROFI: {resp[:150] if resp else 'no response'}")
                         if resp and 'REVERSAL' in resp.upper():
-                            # Close LOSING positions (ROI < 0), keep WINNING ones
-                            losing_positions = []
-                            for c, t in list(self._tracked.items()):
-                                pr = self._price_stream.get_price(c)
-                                if pr > 0:
-                                    pnl = (pr - t.entry_price) / t.entry_price if t.direction == 'LONG' else (t.entry_price - pr) / t.entry_price
-                                    r = pnl * t.leverage * 100
-                                    if r < -1.0:  # losing > -1% ROI
-                                        losing_positions.append((c, r))
-
-                            logger.warning(f"GUARDIAN: REVERSAL — closing {len(losing_positions)} LOSING positions")
-                            for c, r in losing_positions:
-                                tr = self._tracked.get(c)
-                                if tr:
-                                    pr = self._price_stream.get_price(c)
-                                    if pr > 0:
-                                        _, pn = tr.update(pr)
-                                        self._close_trade(c, 'GUARDIAN_REVERSAL', pn)
-                            # Cancel pending in losing direction (direction of losing positions)
-                            losing_dirs = set(self._tracked[c].direction for c, _ in losing_positions if c in self._tracked)
+                            # DON'T close positions — SL/trailing on exchange handle that.
+                            # Only cancel PENDING orders and rescan with fresh direction.
+                            cancelled = 0
                             for c in list(self._pending_orders.keys()):
                                 po = self._pending_orders.get(c)
-                                if po and po.direction in losing_dirs:
+                                if po:
                                     try: self.exchange.cancel_order(po.order_id, c)
                                     except: pass
                                     self._pending_orders.pop(c, None)
+                                    cancelled += 1
                             try: self._open_new_positions()
                             except: pass
                             portfolio_peak = 0
@@ -2163,8 +2147,9 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                         logger.debug(f"Guardian call: {e}")
                 except Exception:
                     time.sleep(30)
-        threading.Thread(target=_guardian, daemon=True).start()
-        logger.info("Position guardian thread started")
+        # Guardian DISABLED — was closing winning positions. Needs redesign.
+        # threading.Thread(target=_guardian, daemon=True).start()
+        logger.info("Guardian DISABLED (needs redesign). SL/trailing on exchange protect positions.")
 
         while self._running:
             try:
