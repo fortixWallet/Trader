@@ -2241,8 +2241,20 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                         pass
                     self._last_api_health_check = now
 
+                # Market read every 30 min — Profi updates regime understanding (no orders)
+                if now - getattr(self, '_last_market_read', 0) > 1800 and self._tracked:
+                    try:
+                        strategy = self._profi.get_daily_strategy()
+                        if strategy:
+                            self._profi_daily_strategy = strategy
+                            logger.info(f"MARKET READ: {strategy.get('regime')} | "
+                                       f"direction={strategy.get('preferred_direction', 'BOTH')}")
+                    except Exception:
+                        pass
+                    self._last_market_read = now
+
                 # Hourly scan: find S/R levels → place limit orders
-                if now - last_signal_scan > 1800:  # scan every 30 min — faster reaction to market changes
+                if now - last_signal_scan > 3600:  # orders every 1 hour
                     self._open_new_positions()
                     self._last_successful_scan = now  # for API health check
                     last_signal_scan = now
