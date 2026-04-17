@@ -1271,6 +1271,150 @@ Reply ONLY one word: "HOLD" or "CLOSE" and the SPECIFIC thing that broke."""
             except Exception as e:
                 logger.debug(f"Profi review {coin}: {e}")
 
+    def _position_guardian(self):
+        """Separate thread: monitors ALL positions + market direction continuously.
+        Detects reversal patterns and calls Profi to confirm before acting.
+        """
+        logger.info("Guardian: monitoring positions and market direction")
+        portfolio_peak_pnl = 0.0
+        last_profi_call = 0
+        PROFI_COOLDOWN = 300  # max 1 Profi call per 5 min
+
+        while self._running:
+            try:
+                time.sleep(10)  # check every 10 seconds
+                if not self._tracked:
+                    continue
+
+                # Compute portfolio unrealized PnL
+                total_roi = 0
+                positions_negative = 0
+                positions_positive = 0
+                position_details = []
+
+                for coin, tracked in list(self._tracked.items()):
+                    price = self._price_stream.get_price(coin)
+                    if price <= 0:
+                        continue
+                    if tracked.direction == 'SHORT':
+                        pnl_pct = (tracked.entry_price - price) / tracked.entry_price
+                    else:
+                        pnl_pct = (price - tracked.entry_price) / tracked.entry_price
+                    roi = pnl_pct * tracked.leverage * 100
+
+                    if roi < -2.0:
+                        positions_negative += 1
+                    elif roi > 1.0:
+                        positions_positive += 1
+                    total_roi += roi
+                    position_details.append(f"{tracked.direction} {coin} ROI={roi:+.1f}%")
+
+                # Update portfolio peak
+                if total_roi > portfolio_peak_pnl:
+                    portfolio_peak_pnl = total_roi
+
+                portfolio_drawdown = portfolio_peak_pnl - total_roi
+
+                # PATTERN DETECTION
+                trigger = False
+                reason = ""
+
+                # Pattern 1: 3+ positions negative simultaneously
+                if positions_negative >= 3 and positions_positive == 0:
+                    trigger = True
+                    reason = f"MASS DECLINE: {positions_negative} positions below -2% ROI, 0 positive"
+
+                # Pattern 2: Portfolio drawdown from peak
+                if portfolio_drawdown > 15.0 and len(self._tracked) >= 3:
+                    trigger = True
+                    reason = f"PORTFOLIO DRAWDOWN: {portfolio_drawdown:.1f}% from peak (peak={portfolio_peak_pnl:.1f}%)"
+
+                if not trigger:
+                    continue
+
+                # Cooldown: don't spam Profi
+                now = time.time()
+                if now - last_profi_call < PROFI_COOLDOWN:
+                    continue
+
+                logger.warning(f"GUARDIAN ALERT: {reason}")
+                logger.info(f"GUARDIAN positions: {', '.join(position_details)}")
+
+                # Call Profi for confirmation
+                try:
+                    # Build macro context
+                    _gc = sqlite3.connect(str(DB_PATH))
+                    parts = []
+                    r = _gc.execute("SELECT close FROM prices WHERE coin='BTC' AND timeframe='4h' ORDER BY timestamp DESC LIMIT 42").fetchall()
+                    if len(r) >= 42: parts.append(f"BTC_7d={((r[0][0]/r[-1][0])-1)*100:+.1f}%")
+                    r = _gc.execute("SELECT value FROM fear_greed ORDER BY date DESC LIMIT 1").fetchone()
+                    if r: parts.append(f"F&G={r[0]}")
+                    r = _gc.execute("SELECT rate FROM funding_rates WHERE coin='BTC' ORDER BY timestamp DESC LIMIT 1").fetchone()
+                    if r and r[0] is not None: parts.append(f"funding={r[0]*100:+.3f}%")
+                    _gc.close()
+                    macro = " | ".join(parts) if parts else "N/A"
+
+                    positions_str = "\n".join(position_details)
+                    pending_str = ", ".join(f"{po.direction} {c}" for c, po in self._pending_orders.items()) if self._pending_orders else "none"
+
+                    profi_response = self._profi._call_simple([{
+                        "role": "user",
+                        "content": f"""GUARDIAN ALERT: {reason}
+
+MACRO: {macro}
+Open positions:
+{positions_str}
+Pending orders: {pending_str}
+
+Is this a REAL REVERSAL or temporary PULLBACK?
+If reversal: which pending orders should be cancelled?
+
+Reply JSON: {{"verdict": "REVERSAL" or "PULLBACK", "cancel_pending": true/false, "reason": "brief"}}"""
+                    }], max_tokens=200)
+
+                    last_profi_call = now
+                    logger.info(f"GUARDIAN PROFI: {profi_response[:200] if profi_response else 'no response'}")
+
+                    # Parse response
+                    if profi_response and 'REVERSAL' in profi_response.upper():
+                        logger.warning("GUARDIAN: Profi confirmed REVERSAL — cancelling contra pending")
+
+                        # Determine dominant position direction
+                        longs = sum(1 for t in self._tracked.values() if t.direction == 'LONG')
+                        shorts = sum(1 for t in self._tracked.values() if t.direction == 'SHORT')
+                        losing_dir = 'LONG' if longs > shorts else 'SHORT'
+
+                        # Cancel pending in losing direction
+                        cancelled = 0
+                        for coin in list(self._pending_orders.keys()):
+                            po = self._pending_orders.get(coin)
+                            if po and po.direction == losing_dir:
+                                try:
+                                    self.exchange.cancel_order(po.order_id, coin)
+                                except Exception:
+                                    pass
+                                self._pending_orders.pop(coin, None)
+                                cancelled += 1
+
+                        if cancelled:
+                            logger.info(f"GUARDIAN: cancelled {cancelled} {losing_dir} pending orders")
+                            self._notify("GUARDIAN: Reversal detected",
+                                        f"{reason}\nProfi: REVERSAL\nCancelled {cancelled} {losing_dir} pending")
+
+                        # Reset peak for fresh tracking
+                        portfolio_peak_pnl = total_roi
+
+                    else:
+                        logger.info("GUARDIAN: Profi says PULLBACK — holding positions, SL/trailing will handle")
+                        portfolio_peak_pnl = total_roi  # reset to avoid re-trigger
+
+                except Exception as e:
+                    logger.debug(f"Guardian Profi call error: {e}")
+
+            except Exception as e:
+                logger.debug(f"Guardian error: {e}")
+                time.sleep(30)
+
     def _manage_positions(self):
         """Fallback: check positions using REST (if WS down)."""
         for coin in list(self._tracked.keys()):
@@ -2201,6 +2345,12 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
         self._running = True
         last_signal_scan = 0
         scan_count = 0
+
+        # Start position guardian thread
+        import threading
+        guardian = threading.Thread(target=self._position_guardian, daemon=True)
+        guardian.start()
+        logger.info("Position guardian thread started")
 
         while self._running:
             try:
