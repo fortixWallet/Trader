@@ -173,7 +173,7 @@ def scan_coin(conn, coin, ts=None):
     long_score = 0
 
     # --- SHORT signals ---
-    at_top = close_pos > 0.85
+    at_top = close_pos > 0.70
     oi_dropping = oi_chg is not None and oi_chg < -0.5
     taker_sell = tk is not None and tk < 0.9
     liq_longs = liq_ratio is not None and liq_ratio > 0.3
@@ -207,7 +207,7 @@ def scan_coin(conn, coin, ts=None):
         reasons.append(f"15m exhaustion")
 
     # --- LONG signals ---
-    at_bot = close_pos < 0.15
+    at_bot = close_pos < 0.30
     oi_rising = oi_chg is not None and oi_chg > 0.5
     taker_buy = tk is not None and tk > 1.1
     liq_shorts = liq_ratio is not None and liq_ratio < -0.3
