@@ -1360,24 +1360,26 @@ Reply ONLY one word: "HOLD" or "CLOSE" and the SPECIFIC thing that broke."""
 
         # Batch 1: first 8 coins (with charts)
         batch1 = coins_with_levels[:8]
-        s1 = self._profi.find_level_setups(
-            coins=batch1, levels_data=levels_data,
-            regime=regime, open_positions=pos_info,
-            sl_history=self._coin_cooldown,
-            trade_feedback=feedback
-        )
+        with self._profi_lock:
+            s1 = self._profi.find_level_setups(
+                coins=batch1, levels_data=levels_data,
+                regime=regime, open_positions=pos_info,
+                sl_history=self._coin_cooldown,
+                trade_feedback=feedback
+            )
         if s1:
             setups.extend(s1)
 
         # Batch 2: next 8 coins (with charts) — if we have more
         batch2 = coins_with_levels[8:16]
         if batch2:
-            s2 = self._profi.find_level_setups(
-                coins=batch2, levels_data=levels_data,
-                regime=regime, open_positions=pos_info,
-                sl_history=self._coin_cooldown,
-                trade_feedback=feedback
-            )
+            with self._profi_lock:
+                s2 = self._profi.find_level_setups(
+                    coins=batch2, levels_data=levels_data,
+                    regime=regime, open_positions=pos_info,
+                    sl_history=self._coin_cooldown,
+                    trade_feedback=feedback
+                )
             if s2:
                 setups.extend(s2)
 
@@ -2089,9 +2091,127 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
         scan_count = 0
 
         # Guardian DISABLED — tested on 18,112 candles (2 years): accuracy <50% at ANY threshold.
-        # BTC bounces more often than continues after drops. Guardian cancels profitable entries.
-        # SL on exchange protects positions. No guardian needed.
-        logger.info("Guardian DISABLED (data shows <50% accuracy on 2y backtest, hurts more than helps)")
+        logger.info("Guardian DISABLED (data shows <50% accuracy on 2y backtest)")
+
+        # Signal Monitor (SHADOW MODE) — scans 15m+OI+liq signals, logs results
+        import threading as _th
+        import queue as _q
+        self._profi_lock = _th.Lock()
+        self._signal_queue = _q.Queue(maxsize=5)
+        SIGNAL_MODE = 'shadow'  # 'shadow' = log only, 'live' = place orders
+        SIGNAL_SCAN_INTERVAL = 300  # 5 minutes
+
+        # Create signal_log table
+        try:
+            _conn = sqlite3.connect(str(DB_PATH))
+            _conn.execute("""CREATE TABLE IF NOT EXISTS signal_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp INTEGER, coin TEXT, direction TEXT,
+                signal_type TEXT, signal_confidence REAL,
+                profi_action TEXT, profi_entry REAL, profi_sl REAL,
+                profi_leverage INTEGER, profi_confidence REAL, profi_reason TEXT,
+                actual_1h_move REAL DEFAULT NULL, would_profit INTEGER DEFAULT NULL
+            )""")
+            _conn.commit()
+            _conn.close()
+        except Exception:
+            pass
+
+        def _signal_monitor_loop():
+            """Scan for signals every 5 min. Enqueue strong ones."""
+            last_scan = {}  # coin → last signal timestamp (dedup)
+            logger.info("Signal Monitor started (shadow mode)")
+            while self._running:
+                try:
+                    time.sleep(SIGNAL_SCAN_INTERVAL)
+                    from src.crypto.signal_scanner import scan_signals
+                    signals = scan_signals(coins=COINS)
+
+                    for coin, sig in signals.items():
+                        if sig['signal'] == 'NEUTRAL':
+                            continue
+                        if sig['confidence'] < 0.65:
+                            continue
+                        # Dedup: 1 per coin per hour
+                        if coin in last_scan and time.time() - last_scan[coin] < 3600:
+                            continue
+                        # Skip if already in position or pending
+                        if coin in self._tracked or coin in self._pending_orders:
+                            continue
+                        # Cooldown after SL
+                        if coin in self._coin_cooldown and time.time() - self._coin_cooldown[coin] < 7200:
+                            continue
+
+                        direction = 'SHORT' if 'SHORT' in sig['signal'] else 'LONG'
+                        last_scan[coin] = time.time()
+
+                        try:
+                            self._signal_queue.put_nowait({
+                                'coin': coin, 'direction': direction,
+                                'signal': sig, 'timestamp': time.time()
+                            })
+                            logger.info(f"SIGNAL: {sig['signal']} {coin} ({sig['confidence']:.0%}) → queued")
+                        except _q.Full:
+                            pass
+
+                except Exception as e:
+                    logger.debug(f"Signal monitor: {e}")
+                    time.sleep(60)
+
+        def _signal_dispatcher_loop():
+            """Process queued signals — call Profi, log results."""
+            logger.info("Signal Dispatcher started (shadow mode)")
+            while self._running:
+                try:
+                    item = self._signal_queue.get(timeout=30)
+
+                    # Skip stale signals (> 5 min old)
+                    if time.time() - item['timestamp'] > 300:
+                        continue
+
+                    coin = item['coin']
+                    direction = item['direction']
+                    sig = item['signal']
+
+                    # Call Profi with lock
+                    with self._profi_lock:
+                        result = self._profi.find_signal_entry(
+                            coin, direction, sig, exchange=self.exchange
+                        )
+
+                    # Log to signal_log
+                    try:
+                        _conn = sqlite3.connect(str(DB_PATH))
+                        _conn.execute(
+                            "INSERT INTO signal_log (timestamp, coin, direction, signal_type, "
+                            "signal_confidence, profi_action, profi_entry, profi_sl, profi_leverage, "
+                            "profi_confidence, profi_reason) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                            (int(time.time()), coin, direction, sig['signal'], sig['confidence'],
+                             result.get('action', 'ERROR') if result else 'NO_RESPONSE',
+                             result.get('entry', 0) if result else 0,
+                             result.get('sl', 0) if result else 0,
+                             result.get('leverage', 0) if result else 0,
+                             result.get('confidence', 0) if result else 0,
+                             result.get('reason', '')[:200] if result else '')
+                        )
+                        _conn.commit()
+                        _conn.close()
+                    except Exception:
+                        pass
+
+                    if SIGNAL_MODE == 'shadow':
+                        action = result.get('action', '?') if result else '?'
+                        logger.info(f"SHADOW: {direction} {coin} → Profi says {action}")
+                    # TODO: LIVE mode will place orders here
+
+                except _q.Empty:
+                    continue
+                except Exception as e:
+                    logger.debug(f"Signal dispatcher: {e}")
+                    time.sleep(10)
+
+        _th.Thread(target=_signal_monitor_loop, daemon=True).start()
+        _th.Thread(target=_signal_dispatcher_loop, daemon=True).start()
 
         while self._running:
             try:
