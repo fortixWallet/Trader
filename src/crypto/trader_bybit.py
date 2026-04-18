@@ -1387,6 +1387,42 @@ Reply ONLY one word: "HOLD" or "CLOSE" and the SPECIFIC thing that broke."""
             logger.info("Opus: no setups at current levels")
             return
 
+        # Signal confirmation: filter setups that conflict with signal scanner
+        try:
+            from src.crypto.signal_scanner import scan_signals
+            signals = scan_signals(coins=[s.get('coin') for s in setups])
+            filtered = []
+            for setup in setups:
+                coin = setup.get('coin', '')
+                direction = setup.get('direction', '')
+                sig = signals.get(coin, {})
+                sig_signal = sig.get('signal', 'NEUTRAL')
+                sig_conf = sig.get('confidence', 0)
+
+                if sig_conf >= 0.60:
+                    # Signal has opinion with >60% confidence
+                    sig_dir = 'SHORT' if 'SHORT' in sig_signal else 'LONG' if 'LONG' in sig_signal else None
+                    if sig_dir and sig_dir != direction:
+                        # CONFLICT: Profi and Signal disagree → skip
+                        logger.info(f"SIGNAL FILTER: {coin} {direction} blocked — signal says {sig_signal} ({sig_conf:.0%})")
+                        continue
+                    elif sig_dir and sig_dir == direction:
+                        # AGREEMENT: both agree → boost confidence
+                        logger.info(f"SIGNAL CONFIRM: {coin} {direction} ✅ signal agrees ({sig_signal} {sig_conf:.0%})")
+                # No signal or low confidence → let Profi decide
+                filtered.append(setup)
+
+            blocked = len(setups) - len(filtered)
+            if blocked > 0:
+                logger.info(f"Signal filter: {blocked} blocked, {len(filtered)} passed")
+            setups = filtered
+        except Exception as e:
+            logger.debug(f"Signal filter: {e}")
+
+        if not setups:
+            logger.info("No setups after signal filter")
+            return
+
         logger.info(f"Opus: {len(setups)} level setups → placing limit orders")
 
         # BTC momentum → decides AGGRESSIVE vs PATIENT entry
