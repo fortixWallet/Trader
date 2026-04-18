@@ -160,16 +160,6 @@ TRADING_TOOLS = [
         }
     },
     {
-        "name": "get_reversal_risk",
-        "description": "Early Warning System: detects reversal risk BEFORE it happens. Returns score 0-100 with components: BTC RSI extremes (>70 = overbought, <35 = oversold), OI vs price divergence, CVD divergence, funding velocity, L/S crowding, 4H trend direction. Call this FIRST before deciding direction. If score > 60: reduce positions. If RSI blocks a direction: avoid that direction.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "coin": {"type": "string", "description": "Coin to check (default BTC)"}
-            }
-        }
-    },
-    {
         "name": "get_historical_patterns",
         "description": "Find historical chart moments that look IDENTICAL to current chart shape for a coin. Searches across ALL coins and 2+ years of data. Returns what happened AFTER those similar patterns (went up or down, by how much). Use this to predict the most likely future move.",
         "input_schema": {
@@ -652,24 +642,6 @@ class Profi:
                 }
                 return json.dumps(result)
 
-            elif tool_name == "get_reversal_risk":
-                coin = tool_input.get("coin", "BTC")
-                conn.close()
-                try:
-                    from src.crypto.early_warning import get_reversal_risk
-                    result = get_reversal_risk(coin)
-                    compact = {
-                        'score': result['score'],
-                        'level': result['level'],
-                        'blocked_direction': result['blocked_direction'],
-                        'rsi': result['rsi'],
-                        'trend_4h': result['trend_4h'],
-                        'recommendation': result['recommendation'],
-                    }
-                    return json.dumps(compact)
-                except Exception as e:
-                    return json.dumps({"error": str(e)})
-
             elif tool_name == "get_historical_patterns":
                 coin = tool_input.get("coin", "BTC")
                 conn.close()
@@ -878,19 +850,6 @@ Give daily strategy. Reply JSON ONLY:
             return []
 
         content = []
-
-        # Early Warning System — reversal risk check BEFORE scan
-        try:
-            from src.crypto.early_warning import get_reversal_risk
-            ews = get_reversal_risk('BTC')
-            ews_text = f"EARLY WARNING: score={ews['score']}/100 [{ews['level']}] | BTC RSI={ews['rsi']} | 4H trend={ews['trend_4h']}"
-            if ews['blocked_direction']:
-                ews_text += f" | CAUTION: {ews['blocked_direction']} risky (RSI extreme)"
-            if ews['recommendation']:
-                ews_text += f" | {ews['recommendation']}"
-            content.append({"type": "text", "text": ews_text})
-        except Exception:
-            pass
 
         # BTC momentum — strongest predictor (85% correlation with alts)
         exchange = getattr(self, '_exchange', None)
