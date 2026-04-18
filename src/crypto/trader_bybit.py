@@ -2098,7 +2098,7 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
         import queue as _q
         self._profi_lock = _th.Lock()
         self._signal_queue = _q.Queue(maxsize=5)
-        SIGNAL_MODE = 'shadow'  # 'shadow' = log only, 'live' = place orders
+        SIGNAL_MODE = 'live'  # 'shadow' = log only, 'live' = place orders
         SIGNAL_SCAN_INTERVAL = 300  # 5 minutes
 
         # Create signal_log table
@@ -2199,10 +2199,58 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                     except Exception:
                         pass
 
-                    if SIGNAL_MODE == 'shadow':
+                    if not result or result.get('action') != 'ENTER':
                         action = result.get('action', '?') if result else '?'
-                        logger.info(f"SHADOW: {direction} {coin} → Profi says {action}")
-                    # TODO: LIVE mode will place orders here
+                        logger.info(f"SIGNAL SKIP: {direction} {coin} → Profi says {action}")
+                        continue
+
+                    if SIGNAL_MODE == 'live':
+                        # Place AGGRESSIVE order (market price)
+                        try:
+                            entry = result.get('entry', 0)
+                            sl_price = result.get('sl', 0)
+                            lev = result.get('leverage', 8)
+                            conf = result.get('confidence', 0.7)
+                            reason = f"[SIGNAL] {sig['signal']} {sig['confidence']:.0%} | {result.get('reason', '')[:150]}"
+
+                            side = 'sell' if direction == 'SHORT' else 'buy'
+                            amount = self._calculate_position_size(coin, entry, lev)
+                            if amount <= 0:
+                                continue
+
+                            # Fixed SL = -6.5% ROI
+                            sl_dist = entry * 0.065 / lev
+                            if direction == 'LONG':
+                                sl = round(entry - sl_dist, 6)
+                            else:
+                                sl = round(entry + sl_dist, 6)
+
+                            order_id = self.exchange.place_level_order(
+                                coin, side, amount, entry, sl_price=sl, tp_price=0)
+
+                            if order_id:
+                                po = PendingOrder(
+                                    coin=coin, direction=direction,
+                                    entry_price=entry, sl_price=sl, tp_price=0,
+                                    size=amount, leverage=lev,
+                                    order_id=order_id, reason=reason[:200]
+                                )
+                                trade_id = self._journal.record_order_placed(
+                                    coin, direction, entry, sl, 0, lev, conf, reason, 'SIGNAL', amount)
+                                po.trade_id = trade_id
+                                self._pending_orders[coin] = po
+
+                                logger.info(f"SIGNAL ORDER: {direction} {coin} @${entry:.4f} "
+                                           f"SL=${sl:.4f} {lev}x | {sig['signal']} ({sig['confidence']:.0%})")
+                                self._notify(
+                                    f"SIGNAL: {direction} {coin} {lev}x",
+                                    f"Signal: {sig['signal']} ({sig['confidence']:.0%})\n"
+                                    f"Entry: ${entry:.4f} | SL: ${sl:.4f}\n"
+                                    f"{'; '.join(sig['reasons'][:2])}")
+                        except Exception as e:
+                            logger.warning(f"Signal order failed {coin}: {e}")
+                    else:
+                        logger.info(f"SHADOW: {direction} {coin} → Profi says ENTER")
 
                 except _q.Empty:
                     continue
