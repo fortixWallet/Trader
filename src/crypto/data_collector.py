@@ -1668,6 +1668,8 @@ def collect_all(sources: list = None, heartbeat_fn=None):
 
 def _collect_binance(conn, heartbeat_fn=None):
     bc = BinanceCollector()
+    bc.collect_candles(conn, '15m', 96)
+    if heartbeat_fn: heartbeat_fn()
     bc.collect_candles(conn, '1h', 200)
     if heartbeat_fn: heartbeat_fn()
     bc.collect_candles(conn, '4h', 200)
