@@ -28,7 +28,8 @@ CAPITAL = 5000
 RISK_PER_TRADE = 0.10  # 10% of capital
 
 from pathlib import Path as _P
-for _env in [_P(__file__).parent.parent / '.env', _P('/Users/williamstorm/Documents/Factory/.env')]:
+# Load .env from project root first (has the working key)
+for _env in [_P(__file__).parent.parent / '.env']:
     if _env.exists():
         for _line in open(_env):
             if '=' in _line and not _line.startswith('#'):
