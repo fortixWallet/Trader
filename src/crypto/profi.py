@@ -1598,7 +1598,7 @@ LONG setups (any regime, but preferred in BULL):
 - Higher lows continuation
 - Pullback to MA in uptrend
 
-MIX directions! Not all coins move together. A good scan has BOTH longs and shorts.
+Decide direction for EACH coin individually based on ITS chart. All same direction is fine if charts confirm it.
 
 Also check: funding rate, orderbook imbalance via tools.
 
