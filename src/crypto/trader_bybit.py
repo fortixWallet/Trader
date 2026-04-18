@@ -2062,7 +2062,7 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
         try:
             from src.crypto.prediction_collector import PredictionCollector
             pc = PredictionCollector()
-            pc.collect_all(coins=COINS[:14], interval='30m', limit=10)
+            pc.collect_all(coins=COINS, interval='30m', limit=10)
         except Exception as e:
             logger.debug(f"Prediction data: {e}")
 
