@@ -327,7 +327,7 @@ class PredictionCollector:
             ts = int(row.get('t', row.get('time', 0)))
             if ts > 1e12:
                 ts = ts // 1000
-            rate = float(row.get('c', row.get('fundingRate', 0)) or 0)
+            rate = float(row.get('close', row.get('c', row.get('fundingRate', 0))) or 0)
             conn.execute(
                 "INSERT OR REPLACE INTO pred_funding_oi_weight VALUES (?,?,?)",
                 (coin, ts, rate)
