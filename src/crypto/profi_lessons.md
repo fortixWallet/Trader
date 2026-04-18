@@ -1,3 +1,159 @@
+## Trade Review 2026-04-18
+
+---
+
+### Wins:
+
+**SHORT UNI 7.0x | +143.48%**
+Direction: ✅ Correct. Entry: ✅ Good. Exit: TIME_EXIT — left money on table (price continued down 1% more, but also risked 4% reversal). The short thesis played out cleanly over 180min. This was one of the best trades in the set. Pattern: Bearish momentum on UNI captured well.
+
+**SHORT XRP 8.0x | +140.02%**
+Direction: ✅ Correct. Entry: ✅ Good. Exit: TIME_EXIT — price continued falling after exit. Leaving a 0.5% gain on 8x leverage means we left meaningful profits. Still a solid win. Pattern: XRP downtrend continuation was readable.
+
+**SHORT NEAR 8.0x | +73.15%**
+Direction: ✅ Correct. Entry: ✅ Good. Exit: TIME_EXIT — nearly perfect, after-exit movement was flat (0%). This was textbook: caught the move, exited at saturation. Pattern: NEAR weakness played out fully within the 180min window.
+
+**LONG LDO 7.0x | +90.39%** (3min trailing stop)
+Direction: ✅ Correct. Entry: ✅ Excellent timing. Exit: TRAILING_STOP after only 3min — this is suspicious. Gained 90% PnL in 3 minutes on 7x leverage. Price only moved +0.9%. Left 1.5% more on table. The trailing stop was too tight for the volatility. Pattern: Momentum spike caught perfectly but harvested prematurely.
+
+**LONG ADA 8.0x | +93.39%**
+Direction: ✅ Correct. Entry: ✅ Good. Exit: TRAILING_STOP after 77min — good, price only went 0.7% more after. Minimal money left on table. Pattern: ADA recovery trade timed well.
+
+**LONG XRP 8.0x | +92.16%**
+Direction: ✅ Correct. Entry: ✅ Good. Exit: TRAILING_STOP after 79min — left 2.1% on table which at 8x is significant. Could have held slightly longer but not egregiously early. Pattern: XRP recovery after prior SHORT played out well — possible mean reversion signal.
+
+**LONG UNI 8.0x | +87.16%**
+Direction: ✅ Correct. Entry: ✅ Good. Exit: TRAILING_STOP after 81min — left only 1.0% more, acceptable. Note this came right after a SHORT UNI — we reversed direction correctly. Pattern: Direction reversal timing was accurate.
+
+**LONG HBAR 8.0x | +89.33%**
+Direction: ✅ Correct. Entry: ✅ Good. Exit: TRAILING_STOP after 48min — near-perfect, 0% left on table. Pattern: HBAR momentum trade captured cleanly.
+
+**LONG ETH 8.0x | +67.15%** (first ETH long)
+Direction: ✅ Correct. Entry: ✅ Good. Exit: TRAILING_STOP after 77min — left 2.6% on table at 8x leverage, that's painful (roughly 20% PnL left). Trailing stop triggered too early on a continuing move. Pattern: ETH uptrend had more legs than the stop allowed.
+
+**LONG ETH 8.0x | +52.25%** (second ETH long, entry $2444)
+Direction: ✅ Correct. Entry: ✅ Good. Exit: TRAILING_STOP after 65min — price FELL after exit (-1.5%). This was actually a near-perfect exit. Pattern: Exit at local top, momentum was fading.
+
+**LONG ETH 8.0x | +57.92%** (third ETH long, entry $2415)
+Direction: ✅ Correct. Entry: ✅ Good. Exit: TIME_EXIT — price flat after (-0.3%). Good exit timing. Pattern: Steady ETH recovery captured correctly.
+
+**LONG BCH 8.0x | +53.51%**
+Direction: ✅ Correct. Entry: ✅ OK. Exit: TRAILING_STOP after 88min — 0% left on table, perfect. Pattern: BCH slow grind upward captured well.
+
+**LONG AVAX 8.0x | +60.54%** (first AVAX long, 9min)
+Direction: ✅ Correct. Entry: ✅ Excellent. Exit: TRAILING_STOP after only 9min — left 1.9% on table at 8x = ~15% additional PnL missed. Triggered too early on volatility. Pattern: Quick spike trade, but trailing stop too sensitive.
+
+**LONG SUI 8.0x | +57.46%** (first SUI, 8min)
+Direction: ✅ Correct. Entry: ✅ Good. Exit: TRAILING_STOP after 8min — 0% left on table. Actually fine given flat after-exit. Pattern: SUI micro-spike captured.
+
+**LONG SUI 8.0x | +56.70%** (second SUI)
+Direction: ✅ Correct. Entry: ✅ Good. Exit: TRAILING_STOP after 40min — 0% left on table. Pattern: SUI continued momentum trade, clean exit.
+
+**LONG SOL 8.0x | +59.07%** (first SOL)
+Direction: ✅ Correct. Entry: ✅ Good. Exit: TRAILING_STOP after 77min — left only 0.8% more. Acceptable. Pattern: SOL recovery trade, well executed.
+
+**SHORT POL 8.0x | +13.28%** (second SHORT POL, GUARDIAN_REVERSAL after 3min)
+Direction: ✅ Correct. Exit: GUARDIAN_REVERSAL after 3min — essentially flat. Tiny win, could have held. Pattern: Short-term scalp that worked but barely.
+
+**SHORT AVAX 8.0x | +12.35%** (second SHORT AVAX, GUARDIAN_REVERSAL after 3min)
+Direction: ✅ Correct but marginal. Pattern: Price dropped but barely — near-random outcome.
+
+**SHORT CRV 8.0x | +25.12%** (first SHORT CRV, GUARDIAN_REVERSAL)
+Direction: ✅ Correct. Small gain captured quickly. Pattern: CRV weakness real but position held too briefly to capitalize.
+
+**LONG CRV 8.0x | +30.24%**
+Direction: ✅ Correct. Entry: OK. Exit: TIME_EXIT — left 2.8% on table at 8x = significant. Pattern: CRV recovery after short-side pressure.
+
+**SHORT BNB 8.0x | -12.45%** (PROFI_EXIT after 61min)
+Direction: ❌ Wrong. Called a SHORT but BNB moved against. Exited via PROFI_EXIT (profit exit) but PnL is -12.45% — confusing label, this was a loss. Pattern: BNB short thesis failed within the timeframe.
+
+---
+
+### Losses:
+
+**LONG PENDLE 7.0x | -92.64%**
+Direction: ❌ Wrong or terribly timed. Entry: Bad. Exit: TIME_EXIT after 180min — held a losing trade for the full 3 hours. After exit, price recovered 9.6% — we exited at the bottom! This is the worst outcome: wrong timing, held through the pain, exited before the recovery. Pattern: Entry caught a local top or downtrend initiation. Should have cut much earlier or the stop-loss system failed here — price fell enough to lose 92% on 7x but never triggered a stop? That implies stop was set too wide or not at all.
+
+**LONG BTC 10.0x | -30.25%**
+Direction: ❌ Wrong (or poor entry). Entry: Bad — bought into weakness. Exit: TIME_EXIT after 180min. Left 4.2% recovery on table after exit. Held a loser for
+
+---
+
+## 2026-04-18 — Daily Self-Analysis
+
+
+# FORTIX DAILY SELF-ANALYSIS
+
+## Performance Summary
+
+**EXECUTED TRADES: 20 trades**
+
+| Category | Trades | W | L | WR | PnL |
+|---|---|---|---|---|---|
+| AGGRESSIVE | 15 | 7 | 8 | 47% | -$55.41 |
+| PATIENT | 5 | 1 | 4 | 20% | -$70.08 |
+| **TOTAL** | **20** | **8** | **12** | **40%** | **-$125.49** |
+
+**MISSED ORDERS: 23 orders**
+
+| Outcome | Count | % |
+|---|---|---|
+| NEUTRAL (wouldn't have hit TP or SL) | 12 | 52% |
+| MISSED PROFIT (would have hit TP) | 8 | 35% |
+| CORRECT SKIP (would have hit SL) | 3 | 13% |
+
+**Critical finding:** 8 of 23 missed orders would have been winners = **73% effective WR on missed PATIENT entries** (8 wins / 11 that triggered = 73%). Meanwhile executed trades are at 40% WR. **The PATIENT orders that I'm NOT filling are dramatically better than what I AM trading.**
+
+---
+
+## AGGRESSIVE Late-Day Shorts Cluster Analysis
+
+The final batch of 8 rapid-fire AGGRESSIVE shorts (ADA, CRV, LDO, AVAX, LINK, UNI, PENDLE, POL) all lasted exactly 3 minutes and were GUARDIAN_REVERSAL exits except PENDLE (+$48.51 TARGET_HIT). This cluster: 5W/3L, but 6 of 8 exited at 3min via Guardian. These aren't real trades — they're noise-scalps that Guardian is correctly killing. Only PENDLE had a real thesis that played out.
+
+---
+
+## The 5 Rules
+
+---
+
+### RULE 1: STOP EXECUTING AGGRESSIVE ENTRIES ON PATIENT SETUPS — WAIT FOR THE LIMIT FILL
+
+**WHEN:** A signal is identified as a PATIENT setup (pullback to support/resistance with limit order), but gets force-entered as AGGRESSIVE because price is "close" (gap < 2%) — DO NOT ENTER. Place the limit order and wait.
+
+**EVIDENCE:**
+- 8 MISSED PATIENT orders would have hit TP: LINK $9.44, ALGO $0.1157, LTC $56.10, HBAR $0.0905, ETH $2376, BTC $76038, XRP $1.4528, BNB $632.70. Combined estimated profit: **~$200+** at 8x leverage on standard position sizes.
+- Only 3 of 11 triggered missed orders would have hit SL (27% loss rate = **73% WR**).
+- Meanwhile, AGGRESSIVE entries on similar PATIENT logic LOST money: LINK 8x AGGRESSIVE at S1 $9.xx → **-$23.07 SL**. AVAX 8x AGGRESSIVE at S2 → **-$22.35 SL**. LDO 8x AGGRESSIVE at S1 → **-$24.27 SL**. APT 8x AGGRESSIVE → **-$21.43 SL**.
+- These 4 AGGRESSIVE-forced-on-PATIENT-thesis trades alone lost **-$91.12**. The PATIENT limit versions of nearly identical setups (LINK $9.44, AVAX, etc.) would have WON.
+- The gap between cancel_price and entry on missed winners averaged 1.5-2.5%. Aggressive entries are jumping in 1-2% too early, getting stopped out before the real support holds.
+
+**IMPACT:** Eliminating these 4 premature entries saves $91.12. Capturing even 5 of the 8 missed PATIENT winners adds ~$125+. Net swing: **+$216 improvement.**
+
+---
+
+### RULE 2: NEVER ENTER PATIENT LONGS WHEN 15-MIN MOMENTUM IS NEGATIVE — WAIT FOR MOMENTUM CONFIRMATION ≥ 0.0%
+
+**WHEN:** OB momentum (mom field) is **≤ -0.5%** at time of entry on a LONG position, DO NOT ENTER regardless of how strong the 4H trend looks. All 4 executed PATIENT longs that lost had negative momentum at entry.
+
+**EVIDENCE:**
+- **PATIENT LOSERS (all had negative momentum at entry):**
+  - AVAX PATIENT: mom = **-0.5%** → -$22.35 SL (15min)
+  - HBAR PATIENT: mom = **-0.6%** → -$33.23 GUARDIAN (14min)
+  - XLM PATIENT: mom = **-0.6%** → -$18.50 GUARDIAN (11min)
+  - FIL PATIENT: mom = **-0.8%** → -$10.74 GUARDIAN (8min)
+  - Combined: **-$84.82 lost**, average hold time **12 minutes**, 0% WR
+
+- **PATIENT WINNER (positive momentum context):**
+  - SUI PATIENT: mom = -1.1% BUT entered on breakout above $1.02 with "massive volume" → +$14.74 (exception: breakout, not pullback)
+
+- **AGGRESSIVE WINNERS with positive momentum:**
+  - ETH AGGRESSIVE: mom = **+0.1%** → +$28.88 TARGET_HIT (21min)
+  - NEAR SHORT: mom = **-0.9%** (negative = correct for shorts) → +$18.97
+
+- The pattern is clear: entering PATIENT pullback longs while price is actively falling (negative 15m momentum) means you're catching a falling knife. The 4H trend is irrelevant if the 15-minute flow is against you. Every single PATIENT long entered with mom ≤ -0.5% was stopped out within 15 minutes.
+
+**IMPACT:** Filtering out these 4 trades saves **$84.82** and removes 4 losses from the record, improving WR from 8/20 (40%) to 8/16 (50%).
+
 ## Trade Review 2026-04-15
 
 ---
@@ -335,137 +491,4 @@
 - Apr 2-13: Conf >=65 = +8.26% (64 trades). Conf <65 = -6.18% (87 trades).
 - **ACTION: Only trade setups with confidence >= 65%. Below that = noise, not signal.**
 
-### Rule 32: Don't over-block shorts — Rule 8 needs nuance
-- Apr 2-13: 142 LONGs vs 9 SHORTs. Shorts: 78% profitable, 0 SL hits.
-- Rule 8 ("no short after 3 red candles") blocked shorts on bear days when they were needed most.
-- **ACTION: Rule 8 applies only for COUNTER-TREND shorts. On bear days, trend-following shorts at resistance are ENCOURAGED after 3 red candles.**
-
-### Rule 33: UNI demoted — unreliable support levels
-- Apr 2-13: UNI had 6 SL hits at support. Levels break too easily.
-- **ACTION: Move UNI from preferred to neutral. Don't prioritize it.**
-
-## COMPLETE TRAINING SUMMARY (63 days, ~1700 trades, Feb 10 - Apr 13 2026)
-
-EVERY period was net profitable except minor drawdown days.
-Key numbers: avg win +1.0%, avg loss -0.6%, profit factor ~1.5-6.0 depending on regime.
-
-TOP 3 RULES (biggest impact):
-1. SL = 0.8-1.0× ATR (not fixed %) — flips losing→winning
-2. PATIENT at S/R > AGGRESSIVE — 42% vs 0-25% WR
-3. Confidence >= 65% minimum — filters out noise trades
-
-## YEARLY TRAINING: 2024 (4H, 48 days, 4 market regimes)
-
-### Rule 34: PHASE DETECTION is the #1 factor
-- Q1 bull: 65% WR. Q2 consolidation: 4% WR. Q3 bear: 35% WR. Q4 parabolic: 47% WR.
-- Same strategy, same rules — WR changes 10x depending on market phase.
-- **ACTION: Before every scan, identify the current phase: ACCUMULATION, TRENDING, PARABOLIC, CONSOLIDATION, DISTRIBUTION, BEAR. Adjust expectations and position size.**
-
-### Rule 35: S/R bounce FAILS in consolidation — don't trade it
-- Q2 2024: 4% WR, -30% PnL. Price oscillates THROUGH levels, not between them.
-- **ACTION: If BTC range < 5% for 7+ days → CONSOLIDATION. Reduce trading to macro levels only or sit out.**
-
-### Rule 36: NEVER short in parabolic bull
-- Q4 2024: Counter-trend shorts = 0% WR, -131% PnL. Even filtered shorts = 7% WR.
-- **ACTION: When BTC has gained >20% in 30 days → PARABOLIC. ONLY LONG. No shorts under any condition.**
-
-### Rule 37: ATH zone = danger (ATR doubles, no historical levels)
-- Q1 2024: ATH zone WR 37.5%, -18.5% PnL. ATR jumped from 2% to 4-6%. No past data above ATH.
-- **ACTION: When price is within 5% of ATH → halve position size, widen SL to 1.5× ATR. No reliable levels exist.**
-
-### Rule 38: Kill switch — ATR > 5% = do not trade that coin
-- Q1 2024: AVAX and DOGE losses came when ATR exceeded 5%.
-- **ACTION: If ATR_1h > 5% for any coin → SKIP. Too volatile for S/R trading.**
-
-### Rule 39: Bear market = funding filter mandatory for shorts
-- Q3 2024: Funding ≤ 0.005% = only profitable strategy (+4.9%). All others negative.
-- **ACTION: In BEAR regime, only SHORT when funding ≤ 0.005%. Crowd is already short — longs get squeezed, not shorts.**
-
-### Rule 40: Wide TP in parabolic (2.5× ATR, 24h hold)
-- Q4 2024: SL 1.0× ATR + TP 2.5× ATR + 24h window = +476% PnL. Tight TP leaves money on table.
-- **ACTION: In PARABOLIC phase, widen TP to 2.0-2.5× ATR. Trend will carry it. Hold longer.**
-
-### Rule 41: Cascade detection — >50% coins break support simultaneously
-- Q4 2024: When >50% of coins broke support in distribution → trend exhaustion. In parabolic → dip-buy.
-- **ACTION: Monitor % of coins breaking S1. If >50% → regime change signal. React accordingly.**
-
-## COMPLETE TRAINING: 16 MONTHS, ~2500 TRADES
-
-| Period | Timeframe | Trades | Key Rule |
-|--------|-----------|--------|----------|
-| Q1 2024 | 4H | 45 | ATH danger, ETH cleanest |
-| Q2 2024 | 4H | 55 | Don't trade consolidation |
-| Q3 2024 | 4H | 43+ | Funding filter for bear shorts |
-| Q4 2024 | 4H | 400+ | Never short parabolic, wide TP |
-| Feb-Apr 2026 | 1H | 1700+ | ATR SL, PATIENT > AGGRESSIVE |
-| **TOTAL** | **—** | **~2500** | **41 rules, 16 months experience** |
-
-### Rule 42: BEAR CRASH (BTC -5%+ weekly) → SHORT ONLY, zero longs
-- Feb 15-28 2025: BTC dropped -13.6%. LONGs = -36.94% PnL (3% TP rate). SHORTs = -0.34% (nearly flat).
-- **ACTION: When BTC cumulative drop exceeds 5% over 7 days → ABSOLUTE SHORT ONLY. Every LONG at support WILL break. This is the single biggest loss scenario.**
-
-### Rule 43: In trending down, SHORT has 16% TP vs LONG 3%
-- Feb 15-28 2025: SHORT TP rate 16% vs LONG 3%. Direction determines everything.
-- **ACTION: In downtrend, SHORT entries are 5x more likely to reach TP than LONGs.**
-
-### Rule 44: RENDER demoted — unreliable across multiple periods
-- Mar 16-31 2025: RENDER 0 TP, 14 SL, -19.90% PnL. Worst coin.
-- **ACTION: Add RENDER to avoid list alongside WIF, DOGE, OP, UNI. Too volatile for S/R trading.**
-
-### Rule 45: Apr-May bull = highest profit potential (PF 6.05)
-- Apr-May 2025: 77.9% adjusted WR, +332% PnL, profit factor 6.05.
-- **ACTION: Spring bull season (Apr-May) historically the strongest. Maximize position count and hold time during this period.**
-
-## MASSIVE TRAINING UPDATE (4000+ trades)
-
-| Period | TF | Trades | PnL | WR |
-|--------|-----|--------|------|-----|
-| 2024 Q1-Q4 | 4H | 543 | mixed | Phase-dependent |
-| 2025 Jan | 1H | 214+ | +49% | 50% |
-| 2025 Feb | 1H | 161+ | -37% to +22% | Bear loses |
-| 2025 Mar | 1H | 1135 | +336% | 56-61% |
-| 2025 Apr-May | 1H | 367 | +332% | 78% |
-| 2025 Jun-Aug | 1H | 359 | +13% | 55% |
-| 2025 Sep-Nov | 1H | 359 | +13% | 55% |
-| 2025 Dec | 1H | 217 | +43% | 57% |
-| 2026 Feb-Apr | 1H | 1700 | +591% | varies |
-| **TOTAL** | | **~5000+** | | |
-
-### Rule 46: Timeout is the hidden edge — 53% of profit comes from drifting trades
-- Jan 2025: 55% of trades timed out, 67% of those profitable. They contributed +64% PnL.
-- **ACTION: Don't panic if TP doesn't hit exactly. Timeouts that drift in your direction ARE profitable.**
-
-### Rule 47: H02-H03 UTC = safest window (Asia late night)
-- Jan 2025: Near-zero SL rate at 02:00-03:00 UTC. +32% combined PnL.
-- **ACTION: Prioritize entries at 02:00-03:00 UTC. Lowest noise, cleanest levels.**
-
-### Rule 48: H16 UTC (US market open) = systematic trap
-- Jan 2025: Only consistently losing hour, 53% SL rate.
-- **ACTION: Skip or reduce entries at 16:00 UTC. US open brings chaotic volume that breaks levels.**
-
-### Rule 49: Weekends outperform weekdays
-- Jan 2025: Weekends generated 53% of all profit. Lower institutional volume = S/R holds better.
-- **ACTION: Don't reduce trading on weekends. They are BETTER for S/R strategy.**
-
-### Rule 50: Momentum streaks — after 2+ TP, next trade 68% WR
-- Jan 2025: After 2+ consecutive TP hits, next trade has 68% WR (vs 29% base).
-- **ACTION: After 2+ consecutive wins, increase confidence and position size slightly. Momentum is real.**
-
-### Rule 51: TRENDING_BULL = trap for S/R bounce
-- 2024 Q3-Q4: TRENDING_BULL regime = only +5.9% from 161 trades. Near-zero edge.
-- PARABOLIC = +230% from 88 trades. TRENDING_BEAR = +32% from 105 trades.
-- **ACTION: S/R bounce works in FLAT, BEAR, PARABOLIC — but NOT in steady TRENDING_BULL. In trending bull, only buy dips, don't bounce trade.**
-
-## FINAL TRAINING SUMMARY: 6000+ TRADES, 28 MONTHS, 51 RULES
-
-Top 5 most impactful rules:
-1. SL = 0.8-1.0× ATR (Rule 5) — flips losing→winning
-2. Phase detection (Rule 34) — same strategy, 10x different results
-3. BEAR CRASH → SHORT ONLY (Rule 42) — prevents biggest losses
-4. FLAT regime = best edge (Rule 2/22) — consistent across all periods
-5. Timeout = hidden edge (Rule 46) — 53% of profit from drifting trades
-
-### Rule 52: NEVER trade coins without training data
-- Live: COAI -$55, RAVE -$32, MYX -$8, BLESS -$8 = -$101 from hot coins with ZERO training.
-- All 51 rules trained on 19 established coins. Hot coins break every rule.
-- **ACTION: Trade ONLY coins from the trained set. No hot coin discovery. No exceptions.**
+### Rule 32: D
