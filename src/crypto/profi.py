@@ -875,10 +875,10 @@ Give daily strategy. Reply JSON ONLY:
                                    f"${btc_now:.0f}")
                     content.append({
                         "type": "text",
-                        "text": f"*** BTC MOMENTUM (85% correlated with alts): {btc_momentum} ***\n"
-                                f"RULE: When BTC RISING → LONG BTC and alts. When BTC FALLING → SHORT BTC and alts. "
-                                f"BTC is a TRADEABLE coin — include BTC setups! It has the best liquidity and lowest spread. "
-                                f"Verified on 1000+ data points: 85% accuracy."
+                        "text": f"*** BTC MOMENTUM: {btc_momentum} ***\n"
+                                f"BTC correlates ~85% with most alts, but NOT all coins follow BTC equally. "
+                                f"SOL, TON, LINK often diverge. Decide direction PER COIN based on its own chart. "
+                                f"BTC is a TRADEABLE coin — include BTC setups!"
                     })
             except Exception:
                 pass
@@ -1562,10 +1562,11 @@ After gathering all data and analyzing charts, reply JSON ONLY:
                 regime_label = daily_strategy.get('regime', regime_label)
 
             regime_ctx = f"""
-CURRENT REGIME: {regime_label}
-You decide independently based on what you SEE on the charts.
-In BEAR: look for SHORT setups ONLY (rejections, breakdowns, dead cat bounce failures).
-In BULL: look for LONG setups ONLY (pullbacks, breakouts, higher lows).
+CURRENT REGIME: {regime_label} (macro context, not a rule)
+Decide direction PER COIN individually based on its own chart structure.
+In BEAR macro: PREFER shorts but LONG is valid if coin's chart is clearly bullish (higher lows, above MA).
+In BULL macro: PREFER longs but SHORT is valid if coin's chart is clearly bearish (lower highs, below MA).
+Not all coins follow BTC. Divergence = opportunity.
 {f"YOUR OPEN POSITIONS: {open_positions_info}" if open_positions_info else "No open positions."}
 {self._format_sl_history(sl_history) if sl_history else ""}
 """
@@ -1579,23 +1580,25 @@ For each coin you see 5 charts:
 - 5D (5-day 4H) — Recent price action detail.
 - 4H (2-week 4H) — Pattern recognition, setups.
 - 1H (3-day hourly) — Entry timing precision.
-RULE: ALL timeframes must agree. 3M DOWN + 1M DOWN = SHORT only. Any conflict = WAIT.
+RULE: Higher timeframes set BIAS. 3M DOWN + 1M DOWN = prefer SHORT. But 1H setup against bias is OK if strong.
 Each chart shows candles, RSI, Bollinger Bands, MA20, MA50, and volume.
 {regime_ctx}
 For EACH coin, decide: is there a tradeable setup RIGHT NOW?
 
-In BEAR market, look for SHORT setups:
+SHORT setups (any regime, but preferred in BEAR):
 - Rejection from resistance / MA50 / upper BB
 - Breakdown below support with volume
 - Lower highs + lower lows continuation
 - Dead cat bounce exhaustion (price failed to reclaim MA20)
 - Bearish divergence on RSI
 
-In BULL market, look for LONG setups:
+LONG setups (any regime, but preferred in BULL):
 - Bounce off support / MA20 / lower BB
 - Breakout above resistance with volume
 - Higher lows continuation
 - Pullback to MA in uptrend
+
+MIX directions! Not all coins move together. A good scan has BOTH longs and shorts.
 
 Also check: funding rate, orderbook imbalance via tools.
 
