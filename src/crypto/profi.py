@@ -1081,6 +1081,155 @@ Reply JSON array (5-8 setups):
         logger.info(f"OPUS: {len(setups)} level setups from {len(coins)} coins")
         return setups
 
+    def find_signal_entry(self, coin: str, direction: str, signal_data: dict,
+                          exchange=None) -> dict:
+        """Find optimal entry for a signal-confirmed direction.
+
+        Signal scanner already determined direction (70-93% accuracy).
+        Profi's job: confirm with chart, find entry price, set SL.
+
+        Args:
+            coin: e.g. 'BTC'
+            direction: 'LONG' or 'SHORT'
+            signal_data: {signal, confidence, reasons, details}
+            exchange: exchange client for live data
+
+        Returns:
+            {action, entry, sl, leverage, confidence, reason} or None
+        """
+        if not self._client:
+            return None
+
+        exchange = exchange or self._exchange
+        content = []
+
+        # Signal info
+        sig_conf = signal_data.get('confidence', 0.7)
+        sig_reasons = '; '.join(signal_data.get('reasons', [])[:3])
+        sig_details = signal_data.get('details', {})
+
+        content.append({
+            "type": "text",
+            "text": (
+                f"SIGNAL: {direction} {coin} (confidence: {sig_conf:.0%})\n"
+                f"Reason: {sig_reasons}\n"
+                f"Data: 15m_pos={sig_details.get('close_pos', '?')}, "
+                f"OI_chg={sig_details.get('oi_chg', '?')}%, "
+                f"taker={sig_details.get('taker', '?')}, "
+                f"liq_ratio={sig_details.get('liq_ratio', '?')}, "
+                f"RSI={sig_details.get('rsi', '?')}, "
+                f"4H_trend={sig_details.get('trend_4h', '?')}%"
+            )
+        })
+
+        # Charts: 1H + 4H
+        try:
+            from src.crypto.chart_generator import generate_live_chart
+            for tf, label in [('1h', '1H LIVE'), ('4h', '4H context')]:
+                b = generate_live_chart(coin, tf, 48 if tf == '1h' else 30, exchange=exchange)
+                if b:
+                    content.append({"type": "text", "text": f"--- {coin}/USDT {label} ---"})
+                    content.append({
+                        "type": "image",
+                        "source": {"type": "base64", "media_type": "image/png",
+                                   "data": base64.b64encode(b).decode()}
+                    })
+        except Exception:
+            pass
+
+        # Live data
+        live_price = 0
+        funding = 0
+        atr_pct = 0.01
+        ob_text = ""
+
+        if exchange:
+            try:
+                t = exchange.get_ticker(coin)
+                if t and t.get('price', 0) > 0:
+                    live_price = t['price']
+                funding = exchange.get_funding_rate(coin) or 0
+
+                ohlcv = exchange._exchange.fetch_ohlcv(exchange._symbol(coin), '1h', limit=14)
+                if ohlcv and len(ohlcv) >= 10:
+                    import numpy as np
+                    h = [c[2] for c in ohlcv]
+                    l = [c[3] for c in ohlcv]
+                    c = [c[4] for c in ohlcv]
+                    trs = [max(h[i]-l[i], abs(h[i]-c[i-1]), abs(l[i]-c[i-1]))
+                           for i in range(1, len(ohlcv))]
+                    atr_pct = np.mean(trs[-14:]) / live_price if live_price > 0 else 0.01
+
+                ob = exchange._exchange.fetch_order_book(exchange._symbol(coin), limit=20)
+                if ob:
+                    bid_vol = sum(b[1] * b[0] for b in ob['bids'][:10])
+                    ask_vol = sum(a[1] * a[0] for a in ob['asks'][:10])
+                    total = bid_vol + ask_vol
+                    if total > 0:
+                        imbalance = (bid_vol - ask_vol) / total
+                        biggest_bid = max(ob['bids'][:10], key=lambda x: x[1]*x[0])
+                        biggest_ask = max(ob['asks'][:10], key=lambda x: x[1]*x[0])
+                        ob_text = (f"OB: {'BUY' if imbalance > 0.1 else 'SELL' if imbalance < -0.1 else 'NEUTRAL'} "
+                                  f"pressure ({imbalance:+.0%}) | "
+                                  f"buy_wall=${biggest_bid[0]:.4f} | sell_wall=${biggest_ask[0]:.4f}")
+            except Exception:
+                pass
+
+        # S/R levels
+        try:
+            from src.crypto.level_finder import find_levels
+            levels = find_levels(coin, timeframe='1h', lookback=100)
+            r_str = ', '.join(f'${p:.4f}' for p in levels.get('resistance', [])[:4])
+            s_str = ', '.join(f'${p:.4f}' for p in levels.get('support', [])[:4])
+        except Exception:
+            r_str = "?"
+            s_str = "?"
+
+        content.append({
+            "type": "text",
+            "text": (
+                f"Live: ${live_price:.4f} | ATR(1h): {atr_pct*100:.2f}% | "
+                f"Funding: {funding*100:.3f}%\n"
+                f"Resistance: [{r_str}]\n"
+                f"Support: [{s_str}]\n"
+                f"{ob_text}\n\n"
+                f"YOUR TASK: Direction is {direction}. Do NOT question it.\n"
+                f"Data shows IMMEDIATE entry = 90% WR. Do NOT wait for pullback.\n\n"
+                f"1. CONFIRM: does chart support {direction}? If CLEARLY contradicts → SKIP\n"
+                f"2. ENTRY: AGGRESSIVE (live price ${live_price:.4f})\n"
+                f"3. SL: {'below nearest support' if direction == 'LONG' else 'above nearest resistance'}\n"
+                f"   If no clear S/R → SL = entry {'−' if direction == 'LONG' else '+'} 1.5×ATR\n"
+                f"   Code enforces max SL = -6.5% ROI\n"
+                f"4. LEVERAGE: signal {sig_conf:.0%} → {'8-10x' if sig_conf > 0.85 else '6-8x'}\n\n"
+                f"Reply JSON ONLY:\n"
+                f'{{"action": "ENTER" or "SKIP", "entry": {live_price:.4f}, '
+                f'"sl": price, "leverage": 6-10, "confidence": 0.65-0.95, '
+                f'"reason": "what you see on chart"}}'
+            )
+        })
+
+        result = self._call_simple(
+            [{"role": "user", "content": content}],
+            model=MODEL, max_tokens=500
+        )
+
+        try:
+            start = result.find('{')
+            end = result.rfind('}') + 1
+            if start >= 0 and end > start:
+                parsed = json.loads(result[start:end])
+                parsed['coin'] = coin
+                parsed['direction'] = direction
+                parsed['signal_confidence'] = sig_conf
+                logger.info(f"SIGNAL ENTRY: {direction} {coin} → {parsed.get('action', '?')} "
+                           f"@${parsed.get('entry', 0):.4f} conf={parsed.get('confidence', 0):.0%} "
+                           f"| {parsed.get('reason', '')[:60]}")
+                return parsed
+        except Exception as e:
+            logger.debug(f"Signal entry parse error: {e}")
+
+        return None
+
     def analyze_candidate(self, coin: str, direction: str, gemini_reason: str,
                           charts: dict, coin_atr: float = 0.02) -> dict:
         """OPUS deep analysis of a Gemini candidate. 5 charts + tools + thinking.
