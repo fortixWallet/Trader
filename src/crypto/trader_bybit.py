@@ -2120,7 +2120,7 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
         def _signal_monitor_loop():
             """Scan for signals every 5 min. Enqueue strong ones."""
             last_scan = {}  # coin → last signal timestamp (dedup)
-            logger.info("Signal Monitor started (shadow mode)")
+            logger.info(f"Signal Monitor started ({SIGNAL_MODE} mode)")
             while self._running:
                 try:
                     time.sleep(SIGNAL_SCAN_INTERVAL)
@@ -2160,7 +2160,7 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
 
         def _signal_dispatcher_loop():
             """Process queued signals — call Profi, log results."""
-            logger.info("Signal Dispatcher started (shadow mode)")
+            logger.info(f"Signal Dispatcher started ({SIGNAL_MODE} mode)")
             while self._running:
                 try:
                     item = self._signal_queue.get(timeout=30)
