@@ -2014,12 +2014,19 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                     self._last_api_alert.pop(api, None)
 
     def _collect_data(self):
-        """Collect fresh market data."""
+        """Collect fresh market data + CoinGlass derivatives for signal scanner."""
         try:
             from src.crypto.data_collector import collect_all
             collect_all(heartbeat_fn=self._write_heartbeat)
         except Exception as e:
             logger.warning(f"Data collection: {e}")
+
+        try:
+            from src.crypto.prediction_collector import PredictionCollector
+            pc = PredictionCollector()
+            pc.collect_all(coins=COINS[:14], interval='30m', limit=10)
+        except Exception as e:
+            logger.debug(f"Prediction data: {e}")
 
     def _write_heartbeat(self):
         hb = _FACTORY_DIR / 'data' / 'crypto' / 'heartbeat.txt'
