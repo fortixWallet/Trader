@@ -1938,31 +1938,27 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                     if float(pos.get('size', 0)) == 0:
                         continue
                     sl = pos.get('stopLoss', '')
-                    tp = pos.get('takeProfit', '')
-                    if sl and tp:
-                        continue  # already protected
+                    if sl:
+                        continue  # has SL — protected (NO TP by design, trailing handles profit)
 
-                    # No TP/SL — set dynamic based on ROI targets + leverage
+                    # No SL at all — emergency protection only
                     t = self.exchange.get_ticker(coin)
                     live = t['price'] if t else p.entry_price
                     lev = int(p.leverage or 7)
-                    tp_pct = 0.07 / lev   # 7% ROI target
-                    sl_pct = 0.12 / lev   # 12% ROI max loss
+                    sl_pct = 0.065 / lev   # 6.5% ROI → price distance
 
                     if p.side == 'long':
-                        new_tp = str(round(live * (1 + tp_pct), 6))
                         new_sl = str(round(live * (1 - sl_pct), 6))
                     else:
-                        new_tp = str(round(live * (1 - tp_pct), 6))
                         new_sl = str(round(live * (1 + sl_pct), 6))
 
                     self.exchange._exchange.privatePostV5PositionTradingStop({
                         'category': 'linear', 'symbol': symbol,
-                        'takeProfit': new_tp, 'stopLoss': new_sl,
-                        'tpTriggerBy': 'LastPrice', 'slTriggerBy': 'LastPrice',
+                        'stopLoss': new_sl,
+                        'slTriggerBy': 'LastPrice',
                         'positionIdx': 0,
                     })
-                    logger.info(f"PROTECTED: {p.side} {coin} SL=${new_sl} TP=${new_tp}")
+                    logger.info(f"EMERGENCY SL: {p.side} {coin} SL=${new_sl} (no TP — trailing handles profit)")
         except Exception as e:
             logger.warning(f"Ensure TP/SL: {e}")
 
