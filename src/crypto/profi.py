@@ -1018,16 +1018,15 @@ TWO ENTRY MODES:
 2. PATIENT (range, no clear direction): entry = nearest S/R level
    Use when: momentum flat, OB neutral. Wait for price to come to level.
 
-YOU control TP and SL. Set them based on S/R levels AND ATR. Verified on 1500+ trades:
-
-RISK MANAGEMENT (code-enforced, same for ALL coins):
-  - SL = -6.5% ROI on exchange. Fixed. If wrong → cut loss fast.
+RISK MANAGEMENT (code-enforced, you do NOT control SL/TP):
+  - SL = -6.5% ROI. Fixed on exchange. You cannot change this.
   - NO TP on exchange. Profit is UNLIMITED — trailing stop handles exit.
   - TRAILING STOP: activates at +10% ROI. If ROI drops 2% from peak → close.
     Example: peak +15% ROI → drops to +13% → trailing closes at +13%.
     Example: peak +30% ROI → drops to +28% → trailing closes at +28%.
-  - YOUR ROLE: pick DIRECTION and ENTRY. Focus on coins that will MOVE BIG.
+  - YOUR ROLE: pick DIRECTION and ENTRY only. Focus on coins that will MOVE BIG.
     The bigger the move, the more trailing captures. Find momentum.
+  - Your SL/TP in JSON are suggestions only — code overrides with fixed values above.
 
 Leverage: 8x.
 
