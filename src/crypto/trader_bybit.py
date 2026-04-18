@@ -2098,7 +2098,7 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
         import queue as _q
         self._profi_lock = _th.Lock()
         self._signal_queue = _q.Queue(maxsize=5)
-        SIGNAL_MODE = 'live'  # 'shadow' = log only, 'live' = place orders
+        SIGNAL_MODE = 'shadow'  # 'shadow' = log only, 'live' = place orders
         SIGNAL_SCAN_INTERVAL = 300  # 5 minutes
 
         # Create signal_log table
