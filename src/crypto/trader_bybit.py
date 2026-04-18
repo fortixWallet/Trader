@@ -1962,7 +1962,7 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                         'tpTriggerBy': 'LastPrice', 'slTriggerBy': 'LastPrice',
                         'positionIdx': 0,
                     })
-                    logger.info(f"PROTECTED: {p.side} {coin} SL=${new_sl} TP=${new_tp} ({dist*100:.1f}%)")
+                    logger.info(f"PROTECTED: {p.side} {coin} SL=${new_sl} TP=${new_tp}")
         except Exception as e:
             logger.warning(f"Ensure TP/SL: {e}")
 
