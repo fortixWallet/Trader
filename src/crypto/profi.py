@@ -1021,7 +1021,7 @@ TWO ENTRY MODES:
 RISK MANAGEMENT (code-enforced, you do NOT control SL/TP):
   - SL = -6.5% ROI. Fixed on exchange. You cannot change this.
   - NO TP on exchange. Profit is UNLIMITED — trailing stop handles exit.
-  - TRAILING STOP: activates at +10% ROI. If ROI drops 2% from peak → close.
+  - TRAILING STOP: activates at +6% ROI. If ROI drops 2% from peak → close.
     Example: peak +15% ROI → drops to +13% → trailing closes at +13%.
     Example: peak +30% ROI → drops to +28% → trailing closes at +28%.
   - YOUR ROLE: pick DIRECTION and ENTRY only. Focus on coins that will MOVE BIG.
