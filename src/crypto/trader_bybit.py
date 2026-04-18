@@ -130,8 +130,8 @@ class TrackedPosition:
         if roi > self.peak_pnl:
             self.peak_pnl = roi
 
-        # Trailing stop: activation +6% ROI, drop -2% from peak. NO fixed TP.
-        if self.peak_pnl >= 6.0:
+        # Trailing stop: activation +7% ROI, drop -2% from peak. NO fixed TP.
+        if self.peak_pnl >= 7.0:
             self.trailing_active = True
         if self.trailing_active and roi <= self.peak_pnl - 2.0:
             return 'TRAILING_STOP', pnl_pct
@@ -1681,9 +1681,9 @@ Reply ONLY one word: "HOLD" or "CLOSE" and the SPECIFIC thing that broke."""
             roi_tp = tracked.target_pct * po.leverage * 100
             roi_sl = tracked.sl_pct * po.leverage * 100
 
-            # Set trailing stop ON EXCHANGE: activation at +6% ROI, drop = 2% ROI in price
-            trail_activation = fill_price * (1 + 0.06 / po.leverage) if po.direction == 'LONG' \
-                else fill_price * (1 - 0.06 / po.leverage)
+            # Set trailing stop ON EXCHANGE: activation at +7% ROI, drop = 2% ROI in price
+            trail_activation = fill_price * (1 + 0.07 / po.leverage) if po.direction == 'LONG' \
+                else fill_price * (1 - 0.07 / po.leverage)
             trail_distance = fill_price * 0.02 / po.leverage  # 2% ROI → price distance
             try:
                 ok = self.exchange.set_trailing_stop(coin, trail_distance, trail_activation)
