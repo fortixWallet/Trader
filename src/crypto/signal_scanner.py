@@ -240,6 +240,34 @@ def scan_coin(conn, coin, ts=None):
         long_score += 1
         reasons.append(f"15m reversal")
 
+    # --- TREND continuation signals (60-79% accuracy) ---
+    oi_strong_rise = oi_chg is not None and oi_chg > 1.0
+    pullback = close_pos < 0.4
+    bounce = close_pos > 0.6
+    uptrend = trend_4h > 1.0
+    downtrend = trend_4h < -1.0
+
+    # LONG trend: 4H UP + OI rising strong + pullback + taker BUY (79%)
+    if uptrend and oi_strong_rise and taker_buy and pullback:
+        long_score += 4
+        reasons.append(f"TREND LONG: 4H{trend_4h:+.1f}% + OI↑{oi_chg:+.1f}% + taker_BUY + pullback → 79%")
+    # LONG trend: 4H>2% + OI rising + pullback (74%)
+    elif trend_4h > 2.0 and oi_rising and pullback and (tk is None or tk > 1.0):
+        long_score += 3
+        reasons.append(f"TREND LONG: 4H{trend_4h:+.1f}% + OI↑ + pullback → 74%")
+    # LONG trend: 4H>1.5% + OI rising + taker BUY (63%)
+    elif trend_4h > 1.5 and oi_rising and taker_buy:
+        long_score += 2
+        reasons.append(f"TREND LONG: 4H{trend_4h:+.1f}% + OI↑ + taker_BUY → 63%")
+
+    # SHORT trend: 4H DOWN + OI rising strong + bounce + taker SELL (61%)
+    if downtrend and oi_strong_rise and taker_sell and bounce:
+        short_score += 3
+        reasons.append(f"TREND SHORT: 4H{trend_4h:+.1f}% + OI↑{oi_chg:+.1f}% + taker_SELL + bounce → 61%")
+    elif trend_4h < -2.0 and oi_rising and bounce and (tk is None or tk < 1.0):
+        short_score += 2
+        reasons.append(f"TREND SHORT: 4H{trend_4h:+.1f}% + OI↑ + bounce → 55%")
+
     # Determine signal
     if short_score >= 5:
         signal = 'STRONG_SHORT'
