@@ -2081,65 +2081,10 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
         last_signal_scan = 0
         scan_count = 0
 
-        # Guardian v2: monitors BTC direction, cancels contra-pending. NEVER touches open positions.
-        import threading
-        from collections import deque
-        def _guardian_v2():
-            btc_prices = deque(maxlen=90)  # 90 × 10sec = 15 min window
-            last_cancel = 0
-            logger.info("Guardian v2: monitoring BTC for pending protection (no position closing)")
-            while self._running:
-                try:
-                    time.sleep(10)
-                    btc = self._price_stream.get_price('BTC')
-                    if btc <= 0: continue
-                    btc_prices.append(btc)
-                    if len(btc_prices) < 30: continue  # need 5 min minimum
-
-                    # BTC change from 15min ago
-                    price_15m_ago = btc_prices[0]
-                    btc_change = (btc - price_15m_ago) / price_15m_ago * 100
-
-                    if not self._pending_orders: continue
-                    if time.time() - last_cancel < 300: continue  # cooldown 5min
-
-                    # Check: do pending orders match BTC direction?
-                    long_pending = [c for c, po in self._pending_orders.items() if po.direction == 'LONG']
-                    short_pending = [c for c, po in self._pending_orders.items() if po.direction == 'SHORT']
-
-                    cancelled = []
-
-                    # BTC dropping >0.5% → cancel LONG pending
-                    if btc_change < -0.5 and long_pending:
-                        for c in long_pending:
-                            po = self._pending_orders.get(c)
-                            if po:
-                                try: self.exchange.cancel_order(po.order_id, c)
-                                except: pass
-                                self._pending_orders.pop(c, None)
-                                cancelled.append(f"LONG {c}")
-
-                    # BTC rising >0.5% → cancel SHORT pending
-                    if btc_change > 0.5 and short_pending:
-                        for c in short_pending:
-                            po = self._pending_orders.get(c)
-                            if po:
-                                try: self.exchange.cancel_order(po.order_id, c)
-                                except: pass
-                                self._pending_orders.pop(c, None)
-                                cancelled.append(f"SHORT {c}")
-
-                    if cancelled:
-                        last_cancel = time.time()
-                        logger.warning(f"GUARDIAN: BTC {btc_change:+.2f}% (15m) → cancelled {len(cancelled)} contra pending: {cancelled}")
-                        self._notify("GUARDIAN: Contra pending cancelled",
-                                    f"BTC {btc_change:+.2f}% (15m)\nCancelled: {', '.join(cancelled)}")
-
-                except Exception:
-                    time.sleep(30)
-
-        threading.Thread(target=_guardian_v2, daemon=True).start()
-        logger.info("Guardian v2 started (pending protection only)")
+        # Guardian DISABLED — tested on 18,112 candles (2 years): accuracy <50% at ANY threshold.
+        # BTC bounces more often than continues after drops. Guardian cancels profitable entries.
+        # SL on exchange protects positions. No guardian needed.
+        logger.info("Guardian DISABLED (data shows <50% accuracy on 2y backtest, hurts more than helps)")
 
         while self._running:
             try:
