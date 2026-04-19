@@ -909,10 +909,17 @@ class BybitTrader:
                 held_min = (time.time() - tracked.entry_time) / 60
                 self._journal.record_close(tracked.trade_id, exit_price, pnl_pct, pnl_usd, reason, held_min)
 
-            # Cooldown after SL — don't reopen same coin for 2 hours
+            # Cooldown after SL — learns from mistakes
             if reason == 'STOP_LOSS':
                 self._coin_cooldown[coin] = time.time()
-                logger.info(f"COOLDOWN: {coin} on 2h cooldown after SL")
+                if not hasattr(self, '_coin_sl_count'):
+                    self._coin_sl_count = {}
+                today = time.strftime('%Y-%m-%d')
+                key = f"{coin}_{today}"
+                self._coin_sl_count[coin] = self._coin_sl_count.get(coin, 0) + 1
+                sl_n = self._coin_sl_count[coin]
+                hours = 24 if sl_n >= 2 else 2
+                logger.info(f"COOLDOWN: {coin} SL #{sl_n} today → {hours}h cooldown")
 
             self._closing_lock.discard(coin)
             return True
@@ -2179,9 +2186,13 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                         # Skip if already in position or pending
                         if coin in self._tracked or coin in self._pending_orders:
                             continue
-                        # Cooldown after SL
-                        if coin in self._coin_cooldown and time.time() - self._coin_cooldown[coin] < 7200:
-                            continue
+                        # Cooldown after SL: 2h for first SL, 24h if 2+ SL same coin same day
+                        if coin in self._coin_cooldown:
+                            cooldown_time = self._coin_cooldown[coin]
+                            sl_count = getattr(self, '_coin_sl_count', {}).get(coin, 0)
+                            cooldown_hours = 24 if sl_count >= 2 else 2
+                            if time.time() - cooldown_time < cooldown_hours * 3600:
+                                continue
 
                         direction = 'SHORT' if 'SHORT' in sig['signal'] else 'LONG'
                         last_scan[coin] = time.time()
@@ -2392,8 +2403,17 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                                f"equity=${eq:.2f} | trades={self._trade_count} | "
                                f"pnl=${self._total_pnl:+.2f} | mode=SIGNAL_AUTO")
 
-                # Daily retrain at 02:00 UTC
+                # Daily reset SL counts at 00:00 UTC
                 current_hour = datetime.now(timezone.utc).hour
+                if current_hour == 0 and hasattr(self, '_coin_sl_count') and self._coin_sl_count:
+                    if not getattr(self, '_sl_reset_today', False):
+                        logger.info(f"Daily SL reset: {self._coin_sl_count}")
+                        self._coin_sl_count = {}
+                        self._sl_reset_today = True
+                elif current_hour == 1:
+                    self._sl_reset_today = False
+
+                # Daily retrain at 02:00 UTC
                 if current_hour == 2 and now - self._last_retrain > 72000:
                     self._daily_retrain()
                     self._last_retrain = now
