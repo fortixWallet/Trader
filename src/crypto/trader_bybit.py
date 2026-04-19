@@ -2377,21 +2377,15 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                         pass
                     self._last_api_health_check = now
 
-                # Hourly scan: find S/R levels → place limit orders
-                if now - last_signal_scan > 3600:  # scan every 1 hour
-                    self._open_new_positions()
-                    self._last_successful_scan = now  # for API health check
+                # Hourly scan DISABLED — Signal AUTO mode test (3 days)
+                # All new trades come from signal_dispatcher_loop via market orders
+                if now - last_signal_scan > 3600:
                     last_signal_scan = now
                     scan_count += 1
-
-                    # Every 2 scans (2 hours): Profi reviews positions + status log
-                    if scan_count % 2 == 0:
-                        self._profi_review_positions()
-                        eq = self._get_equity()
-                        pending_info = f" | pending={len(self._pending_orders)}" if self._pending_orders else ""
-                        logger.info(f"STATUS: {len(self._tracked)} positions{pending_info} | "
-                                   f"equity=${eq:.2f} | trades={self._trade_count} | "
-                                   f"pnl=${self._total_pnl:+.2f}")
+                    eq = self._get_equity()
+                    logger.info(f"STATUS: {len(self._tracked)} positions | "
+                               f"equity=${eq:.2f} | trades={self._trade_count} | "
+                               f"pnl=${self._total_pnl:+.2f} | mode=SIGNAL_AUTO")
 
                 # Daily retrain at 02:00 UTC
                 current_hour = datetime.now(timezone.utc).hour
