@@ -255,10 +255,10 @@ def scan_coin(conn, coin, ts=None):
     elif trend_4h > 2.0 and oi_rising and pullback and (tk is None or tk > 1.0):
         long_score += 3
         reasons.append(f"TREND LONG: 4H{trend_4h:+.1f}% + OI↑ + pullback → 74%")
-    # LONG trend: 4H>1.5% + OI rising + taker BUY (63%)
-    elif trend_4h > 1.5 and oi_rising and taker_buy:
+    # LONG trend: 4H>1.5% + OI rising + taker BUY + pullback (63%)
+    elif trend_4h > 1.5 and oi_rising and taker_buy and pullback:
         long_score += 2
-        reasons.append(f"TREND LONG: 4H{trend_4h:+.1f}% + OI↑ + taker_BUY → 63%")
+        reasons.append(f"TREND LONG: 4H{trend_4h:+.1f}% + OI↑ + taker_BUY + pullback → 63%")
 
     # SHORT trend: 4H DOWN + OI rising strong + bounce + taker SELL (61%)
     if downtrend and oi_strong_rise and taker_sell and bounce:
