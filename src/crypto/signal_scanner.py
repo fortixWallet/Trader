@@ -196,10 +196,10 @@ def scan_coin(conn, coin, ts=None):
     if at_top and oi_dropping and has_upper_wick:
         short_score += 3
         reasons.append(f"TOP + OI↓ + wick → 73%")
-    if rsi_high and oi_dropping and decel:
+    if at_top and rsi_high and oi_dropping and decel:
         short_score += 3
         reasons.append(f"RSI{rsi:.0f} + OI↓ + decel → 78%")
-    if bb_high and oi_dropping and trend_extended:
+    if at_top and bb_high and oi_dropping and trend_extended:
         short_score += 3
         reasons.append(f"BB{bb:.1f} + OI↓ + 4H{trend_4h:+.1f}% → 80%")
     if at_top and decel and has_upper_wick:
@@ -230,10 +230,10 @@ def scan_coin(conn, coin, ts=None):
     if at_bot and oi_rising and has_lower_wick:
         long_score += 3
         reasons.append(f"BOT + OI↑ + wick → 68%")
-    if rsi_low and oi_rising and accel_up:
+    if at_bot and rsi_low and oi_rising and accel_up:
         long_score += 3
         reasons.append(f"RSI{rsi:.0f} + OI↑ + accel → 67%")
-    if bb_low and oi_rising and trend_dipped:
+    if at_bot and bb_low and oi_rising and trend_dipped:
         long_score += 3
         reasons.append(f"BB{bb:.1f} + OI↑ + 4H{trend_4h:+.1f}% → 72%")
     if at_bot and accel_up and has_lower_wick:
