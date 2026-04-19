@@ -2274,31 +2274,26 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                             fill_price = result.price or entry
                             fill_amount = result.amount or amount
 
-                            # SL on exchange
-                            sl_dist = fill_price * 0.065 / lev
+                            # SL -5.5% ROI + TP +6.5% ROI on exchange
+                            sl_dist = fill_price * 0.055 / lev
+                            tp_dist = fill_price * 0.065 / lev
                             if direction == 'LONG':
                                 sl = round(fill_price - sl_dist, 6)
+                                tp = round(fill_price + tp_dist, 6)
                             else:
                                 sl = round(fill_price + sl_dist, 6)
+                                tp = round(fill_price - tp_dist, 6)
 
                             try:
                                 sym = self.exchange._symbol(coin).replace('/', '').replace(':USDT', '')
                                 self.exchange._exchange.private_post_v5_position_trading_stop({
                                     'category': 'linear', 'symbol': sym,
                                     'stopLoss': str(sl), 'slTriggerBy': 'LastPrice',
+                                    'takeProfit': str(tp), 'tpTriggerBy': 'LastPrice',
                                     'positionIdx': 0,
                                 })
                             except Exception as e:
-                                logger.warning(f"SIGNAL SL failed {coin}: {e}")
-
-                            # Trailing on exchange
-                            trail_activation = fill_price * (1 + 0.07 / lev) if direction == 'LONG' \
-                                else fill_price * (1 - 0.07 / lev)
-                            trail_distance = fill_price * 0.02 / lev
-                            try:
-                                self.exchange.set_trailing_stop(coin, trail_distance, trail_activation)
-                            except Exception:
-                                pass
+                                logger.warning(f"SIGNAL SL/TP failed {coin}: {e}")
 
                             # Track position
                             reason = f"[SIGNAL-AUTO] {sig['signal']} {conf:.0%} | {'; '.join(sig.get('reasons', [])[:2])}"
