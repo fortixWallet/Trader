@@ -2178,7 +2178,7 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                     for coin, sig in signals.items():
                         if sig['signal'] == 'NEUTRAL':
                             continue
-                        if sig['confidence'] < 0.65:
+                        if sig['confidence'] < 0.80:
                             continue
                         # Dedup: 1 per coin per hour
                         if coin in last_scan and time.time() - last_scan[coin] < 3600:
