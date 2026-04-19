@@ -245,6 +245,10 @@ class BybitTrader:
     def _notify(self, title, body):
         if not self._tg_token or not self._tg_chat:
             return
+        # Only important notifications: signals, closes, stops, starts
+        important = any(k in title for k in ['SIGNAL', 'CLOSE', 'STOP', 'Started', 'Stopped', 'TARGET', 'TRAILING'])
+        if not important:
+            return
         try:
             requests.post(
                 f"https://api.telegram.org/bot{self._tg_token}/sendMessage",
