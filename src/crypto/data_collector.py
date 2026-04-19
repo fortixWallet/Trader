@@ -113,7 +113,7 @@ CRYPTOQUANT_KEY = os.getenv('CRYPTOQUANT_API_KEY', '')
 TRACKED_COINS = [
     'BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'ADA', 'AVAX', 'DOT', 'LINK', 'POL',
     'UNI', 'AAVE', 'PENDLE', 'LDO', 'CRV',
-    'ARB', 'OP',
+    'ARB', 'OP', 'APT', 'FIL', 'NEAR', 'TON',
     'FET', 'RENDER', 'TAO',
     'DOGE', 'SHIB', 'PEPE', 'WIF', 'BONK',
 ]
