@@ -2354,7 +2354,7 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                     # Fallback managed by _manage_positions (REST)
 
                 # Collect data every 30 min — in background thread (NEVER block trading)
-                if now - self._last_data_collect > 1800:
+                if now - self._last_data_collect > 300:  # every 5 min (STANDARD: 300 req/min)
                     self._last_data_collect = now
                     import threading
                     threading.Thread(target=self._collect_data, daemon=True).start()

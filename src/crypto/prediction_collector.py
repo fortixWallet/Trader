@@ -65,8 +65,8 @@ class PredictionCollector:
     def _rate_limit(self):
         """STARTUP plan: ~120 req/min. Use 0.6s gap for safety."""
         elapsed = time.time() - self._last_req
-        if elapsed < 0.6:
-            time.sleep(0.6 - elapsed)
+        if elapsed < 0.15:  # STANDARD: 300 req/min
+            time.sleep(0.15 - elapsed)
         self._last_req = time.time()
         self._req_count += 1
 
