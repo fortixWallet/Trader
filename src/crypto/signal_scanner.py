@@ -207,7 +207,11 @@ def scan_coin(conn, coin, ts=None):
         reasons.append(f"15m exhaustion")
 
     # --- LONG signals ---
-    at_bot = close_pos < 0.30
+    # Block LONGs in downtrend (4H trend < -1%)
+    if trend_4h < -1.0:
+        at_bot = False  # force no LONG signals in downtrend
+    else:
+        at_bot = close_pos < 0.30
     oi_rising = oi_chg is not None and oi_chg > 0.5
     taker_buy = tk is not None and tk > 1.1
     liq_shorts = liq_ratio is not None and liq_ratio < -0.3
