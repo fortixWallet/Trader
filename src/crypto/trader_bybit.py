@@ -888,11 +888,12 @@ class BybitTrader:
             emoji = '💰' if pnl_pct > 0 else '🔻'
             logger.info(f"CLOSE {coin}: {reason} | {pnl_lev:+.1f}% lev | ${pnl_usd:+.2f} | "
                        f"{held_min:.0f}min | total=${self._total_pnl:+.2f}")
+            eq = self._get_equity() or self.capital
             self._notify(
-                f"{emoji} CLOSE {coin} — {reason}",
-                f"ROI: {pnl_lev:+.1f}% | Price: {pnl_pct*100:+.2f}%\n"
-                f"${pnl_usd:+.2f} in {held_min:.0f}min\n"
-                f"Day total: ${self._total_pnl:+.2f}"
+                f"{emoji} CLOSE {tracked.direction} {coin} — {reason}",
+                f"ROI: {pnl_lev:+.1f}% | ${pnl_usd:+.2f}\n"
+                f"Entry: ${tracked.entry_price:.4f} | Hold: {held_min:.0f}min\n"
+                f"Day P&L: ${self._total_pnl:+.2f} | Equity: ${eq:,.0f}"
             )
 
             equity = self._get_equity() or self.capital
