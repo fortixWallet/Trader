@@ -2134,7 +2134,7 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
         import queue as _q
         self._profi_lock = _th.Lock()
         self._signal_queue = _q.Queue(maxsize=5)
-        SIGNAL_MODE = 'shadow'  # 'shadow' = log only, 'live' = place orders
+        SIGNAL_MODE = 'auto'  # 'shadow' = log only, 'auto' = market order without Profi
         SIGNAL_SCAN_INTERVAL = 60  # 1 minute
 
         # Create signal_log table
@@ -2195,25 +2195,20 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                     time.sleep(60)
 
         def _signal_dispatcher_loop():
-            """Process queued signals — call Profi, log results."""
+            """Process queued signals — AUTO mode: market order without Profi."""
             logger.info(f"Signal Dispatcher started ({SIGNAL_MODE} mode)")
             while self._running:
                 try:
                     item = self._signal_queue.get(timeout=30)
 
-                    # Skip stale signals (> 5 min old)
                     if time.time() - item['timestamp'] > 300:
                         continue
 
                     coin = item['coin']
                     direction = item['direction']
                     sig = item['signal']
-
-                    # Call Profi with lock
-                    with self._profi_lock:
-                        result = self._profi.find_signal_entry(
-                            coin, direction, sig, exchange=self.exchange
-                        )
+                    lev = 8
+                    conf = sig['confidence']
 
                     # Log to signal_log
                     try:
@@ -2222,71 +2217,101 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                             "INSERT INTO signal_log (timestamp, coin, direction, signal_type, "
                             "signal_confidence, profi_action, profi_entry, profi_sl, profi_leverage, "
                             "profi_confidence, profi_reason) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                            (int(time.time()), coin, direction, sig['signal'], sig['confidence'],
-                             result.get('action', 'ERROR') if result else 'NO_RESPONSE',
-                             result.get('entry', 0) if result else 0,
-                             result.get('sl', 0) if result else 0,
-                             result.get('leverage', 0) if result else 0,
-                             result.get('confidence', 0) if result else 0,
-                             result.get('reason', '')[:200] if result else '')
+                            (int(time.time()), coin, direction, sig['signal'], conf,
+                             'AUTO', 0, 0, lev, conf,
+                             '; '.join(sig.get('reasons', [])[:2]))
                         )
                         _conn.commit()
                         _conn.close()
                     except Exception:
                         pass
 
-                    if not result or result.get('action') != 'ENTER':
-                        action = result.get('action', '?') if result else '?'
-                        logger.info(f"SIGNAL SKIP: {direction} {coin} → Profi says {action}")
-                        continue
-
-                    if SIGNAL_MODE == 'live':
-                        # Place AGGRESSIVE order (market price)
+                    if SIGNAL_MODE == 'auto':
                         try:
-                            entry = result.get('entry', 0)
-                            sl_price = result.get('sl', 0)
-                            lev = result.get('leverage', 8)
-                            conf = result.get('confidence', 0.7)
-                            reason = f"[SIGNAL] {sig['signal']} {sig['confidence']:.0%} | {result.get('reason', '')[:150]}"
+                            # Get live price
+                            ticker = self.exchange.get_ticker(coin)
+                            if not ticker or ticker.get('price', 0) <= 0:
+                                logger.warning(f"SIGNAL: no price for {coin}")
+                                continue
+                            entry = ticker['price']
 
-                            side = 'sell' if direction == 'SHORT' else 'buy'
+                            # Set leverage
+                            try:
+                                self.exchange.set_leverage(coin, lev, direction)
+                            except Exception:
+                                pass
+
+                            # Position size
                             amount = self._calculate_position_size(coin, entry, lev)
                             if amount <= 0:
+                                logger.info(f"SIGNAL: {coin} no budget")
                                 continue
 
-                            # Fixed SL = -6.5% ROI
-                            sl_dist = entry * 0.065 / lev
+                            # Market order
+                            side = 'sell' if direction == 'SHORT' else 'buy'
+                            result = self.exchange.place_market_order(coin, side, amount)
+
+                            if not result:
+                                logger.warning(f"SIGNAL: market order failed {coin}")
+                                continue
+
+                            fill_price = result.price or entry
+                            fill_amount = result.amount or amount
+
+                            # SL on exchange
+                            sl_dist = fill_price * 0.065 / lev
                             if direction == 'LONG':
-                                sl = round(entry - sl_dist, 6)
+                                sl = round(fill_price - sl_dist, 6)
                             else:
-                                sl = round(entry + sl_dist, 6)
+                                sl = round(fill_price + sl_dist, 6)
 
-                            order_id = self.exchange.place_level_order(
-                                coin, side, amount, entry, sl_price=sl, tp_price=0)
+                            try:
+                                sym = self.exchange._symbol(coin).replace('/', '').replace(':USDT', '')
+                                self.exchange._exchange.private_post_v5_position_trading_stop({
+                                    'category': 'linear', 'symbol': sym,
+                                    'stopLoss': str(sl), 'slTriggerBy': 'LastPrice',
+                                    'positionIdx': 0,
+                                })
+                            except Exception as e:
+                                logger.warning(f"SIGNAL SL failed {coin}: {e}")
 
-                            if order_id:
-                                po = PendingOrder(
-                                    coin=coin, direction=direction,
-                                    entry_price=entry, sl_price=sl, tp_price=0,
-                                    size=amount, leverage=lev,
-                                    order_id=order_id, reason=reason[:200]
-                                )
-                                trade_id = self._journal.record_order_placed(
-                                    coin, direction, entry, sl, 0, lev, conf, reason, 'SIGNAL', amount)
-                                po.trade_id = trade_id
-                                self._pending_orders[coin] = po
+                            # Trailing on exchange
+                            trail_activation = fill_price * (1 + 0.07 / lev) if direction == 'LONG' \
+                                else fill_price * (1 - 0.07 / lev)
+                            trail_distance = fill_price * 0.02 / lev
+                            try:
+                                self.exchange.set_trailing_stop(coin, trail_distance, trail_activation)
+                            except Exception:
+                                pass
 
-                                logger.info(f"SIGNAL ORDER: {direction} {coin} @${entry:.4f} "
-                                           f"SL=${sl:.4f} {lev}x | {sig['signal']} ({sig['confidence']:.0%})")
-                                self._notify(
-                                    f"SIGNAL: {direction} {coin} {lev}x",
-                                    f"Signal: {sig['signal']} ({sig['confidence']:.0%})\n"
-                                    f"Entry: ${entry:.4f} | SL: ${sl:.4f}\n"
-                                    f"{'; '.join(sig['reasons'][:2])}")
+                            # Track position
+                            reason = f"[SIGNAL-AUTO] {sig['signal']} {conf:.0%} | {'; '.join(sig.get('reasons', [])[:2])}"
+                            tracked = TrackedPosition(
+                                coin=coin, direction=direction, entry_price=fill_price,
+                                size=fill_amount, leverage=lev, entry_time=time.time(),
+                                sl_price=sl, tp_price=0, reason=reason[:200],
+                                target_pct=0.07/lev, sl_pct=0.065/lev, max_hold_hours=8
+                            )
+                            trade_id = self._journal.record_order_placed(
+                                coin, direction, fill_price, sl, 0, lev, conf, reason, 'SIGNAL', fill_amount)
+                            if trade_id:
+                                self._journal.record_fill(trade_id, fill_price, fill_amount)
+                            tracked.trade_id = trade_id
+                            self._tracked[coin] = tracked
+
+                            logger.info(f"SIGNAL AUTO: {direction} {coin} @${fill_price:.4f} "
+                                       f"SL=${sl:.4f} {lev}x | {sig['signal']} ({conf:.0%})")
+                            self._notify(
+                                f"🎯 SIGNAL: {direction} {coin} {lev}x",
+                                f"Signal: {sig['signal']} ({conf:.0%})\n"
+                                f"Entry: ${fill_price:.4f} | SL: ${sl:.4f}\n"
+                                f"Market order FILLED\n"
+                                f"{'; '.join(sig.get('reasons', [])[:2])}")
+
                         except Exception as e:
-                            logger.warning(f"Signal order failed {coin}: {e}")
+                            logger.warning(f"Signal auto order failed {coin}: {e}")
                     else:
-                        logger.info(f"SHADOW: {direction} {coin} → Profi says ENTER")
+                        logger.info(f"SHADOW: {direction} {coin} ({sig['signal']} {conf:.0%})")
 
                 except _q.Empty:
                     continue
