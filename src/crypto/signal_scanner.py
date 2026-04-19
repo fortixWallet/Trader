@@ -173,9 +173,7 @@ def scan_coin(conn, coin, ts=None):
     long_score = 0
 
     # --- SHORT signals ---
-    # Block SHORTs in uptrend (4H trend > +1%)
-    block_shorts = trend_4h > 1.0
-    at_top = close_pos > 0.70 and not block_shorts
+    at_top = close_pos > 0.70
     oi_dropping = oi_chg is not None and oi_chg < -0.5
     taker_sell = tk is not None and tk < 0.9
     liq_longs = liq_ratio is not None and liq_ratio > 0.3
@@ -209,12 +207,7 @@ def scan_coin(conn, coin, ts=None):
         reasons.append(f"15m exhaustion")
 
     # --- LONG signals ---
-    # Block ALL LONGs in downtrend (4H trend < -1%)
-    block_longs = trend_4h < -1.0
-    if block_longs:
-        at_bot = False
-    else:
-        at_bot = close_pos < 0.30
+    at_bot = close_pos < 0.30
     oi_rising = oi_chg is not None and oi_chg > 0.5
     taker_buy = tk is not None and tk > 1.1
     liq_shorts = liq_ratio is not None and liq_ratio < -0.3
@@ -237,13 +230,13 @@ def scan_coin(conn, coin, ts=None):
     if at_bot and oi_rising and has_lower_wick:
         long_score += 3
         reasons.append(f"BOT + OI↑ + wick → 68%")
-    if not block_longs and rsi_low and oi_rising and accel_up:
+    if rsi_low and oi_rising and accel_up:
         long_score += 3
         reasons.append(f"RSI{rsi:.0f} + OI↑ + accel → 67%")
-    if not block_longs and bb_low and oi_rising and trend_dipped:
+    if bb_low and oi_rising and trend_dipped:
         long_score += 3
         reasons.append(f"BB{bb:.1f} + OI↑ + 4H{trend_4h:+.1f}% → 72%")
-    if not block_longs and at_bot and accel_up and has_lower_wick:
+    if at_bot and accel_up and has_lower_wick:
         long_score += 1
         reasons.append(f"15m reversal")
 

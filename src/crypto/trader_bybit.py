@@ -2178,7 +2178,7 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                     for coin, sig in signals.items():
                         if sig['signal'] == 'NEUTRAL':
                             continue
-                        if sig['confidence'] < 0.80:
+                        if sig['confidence'] < 0.75:
                             continue
                         # Dedup: 1 per coin per hour
                         if coin in last_scan and time.time() - last_scan[coin] < 3600:
@@ -2186,11 +2186,11 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                         # Skip if already in position or pending
                         if coin in self._tracked or coin in self._pending_orders:
                             continue
-                        # Cooldown after SL: 2h for first SL, 24h if 2+ SL same coin same day
+                        # Cooldown after SL: 2h per SL, 24h if 3+ SL same coin same day
                         if coin in self._coin_cooldown:
                             cooldown_time = self._coin_cooldown[coin]
                             sl_count = getattr(self, '_coin_sl_count', {}).get(coin, 0)
-                            cooldown_hours = 24 if sl_count >= 2 else 2
+                            cooldown_hours = 24 if sl_count >= 3 else 2
                             if time.time() - cooldown_time < cooldown_hours * 3600:
                                 continue
 
