@@ -173,7 +173,9 @@ def scan_coin(conn, coin, ts=None):
     long_score = 0
 
     # --- SHORT signals ---
-    at_top = close_pos > 0.70
+    # Block SHORTs in uptrend (4H trend > +1%)
+    block_shorts = trend_4h > 1.0
+    at_top = close_pos > 0.70 and not block_shorts
     oi_dropping = oi_chg is not None and oi_chg < -0.5
     taker_sell = tk is not None and tk < 0.9
     liq_longs = liq_ratio is not None and liq_ratio > 0.3
