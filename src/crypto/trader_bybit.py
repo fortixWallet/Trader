@@ -736,8 +736,9 @@ class BybitTrader:
         cost_per = price * contract_size
         amount = target_notional / cost_per
 
-        # Respect exchange limits
-        amount = max(min_amount, min(amount, max_amount * 0.9))  # 90% of max
+        # Respect exchange limits (ccxt maxAmount is position limit, not per-order limit)
+        # Bybit per-order max ≈ ccxt max / 10. Use conservative 10% cap.
+        amount = max(min_amount, min(amount, max_amount * 0.10))
 
         # Round to reasonable precision
         if amount >= 100:
