@@ -2255,6 +2255,25 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                     close_time = f"{now_dt.hour:02d}:{close_minute:02d}:00"
                     secs_before = 60 - second
 
+                    # Step 0: Sync positions with exchange BEFORE scan
+                    try:
+                        real_pos = self.exchange.get_positions()
+                        real_coins = {p.symbol.replace('/USDT:USDT', ''): p for p in real_pos}
+                        for coin in list(self._tracked.keys()):
+                            if coin not in real_coins:
+                                logger.info(f"Pre-scan sync: {coin} closed on exchange, freeing slot")
+                                del self._tracked[coin]
+                        for coin, p in real_coins.items():
+                            if coin not in self._tracked:
+                                direction = 'LONG' if p.side == 'long' else 'SHORT'
+                                self._tracked[coin] = TrackedPosition(
+                                    coin=coin, direction=direction, entry_price=p.entry_price,
+                                    size=p.size, leverage=p.leverage, entry_time=time.time())
+                                logger.info(f"Pre-scan sync: adopted {direction} {coin}")
+                        logger.info(f"Pre-scan sync: {len(real_pos)} exchange, {len(self._tracked)} tracked")
+                    except Exception as e:
+                        logger.warning(f"Pre-scan sync failed: {e}")
+
                     # Step 1: Refresh 15m candles from Binance (parallel, ~1.3s)
                     t0 = time.time()
                     n_refreshed = _refresh_15m_candles()
