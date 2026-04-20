@@ -2236,9 +2236,9 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                     second = now_dt.second
 
                     # 15m candles close at :00, :15, :30, :45
-                    # Scan at XX:14:50, XX:29:50, XX:44:50, XX:59:50
-                    target_minutes = {14, 29, 44, 59}
-                    if minute not in target_minutes or second < 48 or second > 55:
+                    # Scan at XX:00:02, XX:15:02, XX:30:02, XX:45:02 (AFTER close, final data)
+                    target_minutes = {0, 15, 30, 45}
+                    if minute not in target_minutes or second < 2 or second > 8:
                         continue
 
                     # Dedup: one scan per 15min block
