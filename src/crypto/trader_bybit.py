@@ -2332,20 +2332,30 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
 
                             _t0 = time.time()
                             amount = self._calculate_position_size(coin, entry, lev, cached_equity=equity)
-                            _t1 = time.time()
                             if amount <= 0:
                                 return None
 
+                            # Calculate SL/TP BEFORE order — include in market order
+                            sl_dist = entry * 0.055 / lev
+                            tp_dist = entry * 0.065 / lev
+                            if direction == 'LONG':
+                                sl = round(entry - sl_dist, 6)
+                                tp = round(entry + tp_dist, 6)
+                            else:
+                                sl = round(entry + sl_dist, 6)
+                                tp = round(entry - tp_dist, 6)
+
                             side = 'sell' if direction == 'SHORT' else 'buy'
-                            result = self.exchange.place_market_order(coin, side, amount)
-                            _t2 = time.time()
+                            result = self.exchange.place_market_order(
+                                coin, side, amount, sl_price=sl, tp_price=tp)
+                            _t1 = time.time()
                             if not result:
                                 return None
 
                             fill_price = result.price or entry
                             fill_amount = result.amount or amount
-                            logger.info(f"  ORDER {coin}: size={_t1-_t0:.1f}s market={_t2-_t1:.1f}s total={_t2-_t0:.1f}s")
-                            return (coin, direction, sig, lev, sig['confidence'], fill_price, fill_amount)
+                            logger.info(f"  ORDER {coin}: {_t1-_t0:.1f}s (market+SL/TP in one call)")
+                            return (coin, direction, sig, lev, sig['confidence'], fill_price, fill_amount, sl, tp)
 
                         except Exception as e:
                             logger.warning(f"Signal order failed {coin}: {e}")
@@ -2355,36 +2365,11 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                     with ThreadPoolExecutor(max_workers=10) as pool:
                         results = list(pool.map(_place_order, to_trade))
 
-                    # Step 5: Set SL/TP in parallel + track
-                    filled_results = [r for r in results if r is not None]
-
-                    def _set_sl_tp(res):
-                        coin, direction, sig, lev, conf, fill_price, fill_amount = res
-                        sl_dist = fill_price * 0.055 / lev
-                        tp_dist = fill_price * 0.065 / lev
-                        if direction == 'LONG':
-                            sl = round(fill_price - sl_dist, 6)
-                            tp = round(fill_price + tp_dist, 6)
-                        else:
-                            sl = round(fill_price + sl_dist, 6)
-                            tp = round(fill_price - tp_dist, 6)
-                        try:
-                            sym = self.exchange._symbol(coin).replace('/', '').replace(':USDT', '')
-                            self.exchange._exchange.private_post_v5_position_trading_stop({
-                                'category': 'linear', 'symbol': sym,
-                                'stopLoss': str(sl), 'slTriggerBy': 'LastPrice',
-                                'takeProfit': str(tp), 'tpTriggerBy': 'LastPrice',
-                                'positionIdx': 0,
-                            })
-                        except Exception as e:
-                            logger.warning(f"SIGNAL SL/TP failed {coin}: {e}")
-                        return (coin, direction, sig, lev, conf, fill_price, fill_amount, sl, tp)
-
-                    with ThreadPoolExecutor(max_workers=10) as pool:
-                        sl_tp_results = list(pool.map(_set_sl_tp, filled_results))
-
+                    # Step 5: Track filled orders (SL/TP already set in market order)
                     filled_count = 0
-                    for res in sl_tp_results:
+                    for res in results:
+                        if res is None:
+                            continue
                         coin, direction, sig, lev, conf, fill_price, fill_amount, sl, tp = res
 
                         reason = f"[SIGNAL-AUTO] {sig['signal']} {conf:.0%} | {'; '.join(sig.get('reasons', [])[:2])}"

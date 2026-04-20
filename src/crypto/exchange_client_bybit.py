@@ -303,11 +303,21 @@ class BybitClient:
             logger.error(f"Limit failed {side} {coin}: {e}")
             return self.place_market_order(coin, side, amount)
 
-    def place_market_order(self, coin: str, side: str, amount: float) -> Optional[OrderResult]:
+    def place_market_order(self, coin: str, side: str, amount: float,
+                           sl_price: float = 0, tp_price: float = 0) -> Optional[OrderResult]:
         self._ensure_connected()
         try:
+            params = {}
+            if sl_price > 0:
+                params['stopLoss'] = str(sl_price)
+                params['slTriggerBy'] = 'LastPrice'
+            if tp_price > 0:
+                params['takeProfit'] = str(tp_price)
+                params['tpTriggerBy'] = 'LastPrice'
+
             order = self._retry(self._exchange.create_order,
-                self._symbol(coin), 'market', side, amount)
+                self._symbol(coin), 'market', side, amount,
+                params=params if params else None)
             if not order:
                 return None
 
@@ -316,7 +326,8 @@ class BybitClient:
                 fill_price = self.get_ticker(coin)['price']
 
             filled = float(order.get('filled') or order.get('amount') or amount)
-            logger.info(f"Market: {side} {coin} {filled} @ ${fill_price:.4f}")
+            sl_tp_info = f" SL=${sl_price:.4f} TP=${tp_price:.4f}" if sl_price else ""
+            logger.info(f"Market: {side} {coin} {filled} @ ${fill_price:.4f}{sl_tp_info}")
             return OrderResult(
                 id=str(order['id']), symbol=self._symbol(coin), side=side,
                 amount=filled, price=fill_price, status='filled')
