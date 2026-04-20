@@ -2193,12 +2193,16 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
 
                 # Always store in memory (scanner uses this directly)
                 _fresh_candles.clear()
+                current_block = (int(time.time()) // 900) * 900  # current 15min block start
                 for coin, data in fetched:
                     if not data: continue
                     _fresh_candles[coin] = []
                     for k in data:
+                        candle_ts = int(k[0]) // 1000
+                        if candle_ts >= current_block:
+                            continue  # skip forming candle — not closed yet
                         _fresh_candles[coin].append((
-                            int(k[0]) // 1000,
+                            candle_ts,
                             float(k[1]), float(k[2]), float(k[3]), float(k[4]), float(k[5])))
 
                 # Try DB write (non-blocking, 2s timeout)
