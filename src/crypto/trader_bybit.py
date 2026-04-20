@@ -2172,8 +2172,10 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
             last_scan_quarter = -1
             logger.info(f"Signal Monitor started ({SIGNAL_MODE} mode, pre-close scan)")
 
+            _pending_candle_writes = []  # buffer for DB writes after orders
+
             def _refresh_15m_candles():
-                """Fetch fresh 15m candles from Binance in parallel, write to DB."""
+                """Fetch fresh 15m candles from Binance in parallel. Write to DB later."""
                 from concurrent.futures import ThreadPoolExecutor
                 def _fetch(coin):
                     try:
@@ -2185,23 +2187,33 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                         return coin, None
 
                 with ThreadPoolExecutor(max_workers=10) as pool:
-                    results = list(pool.map(_fetch, COINS))
+                    fetched = list(pool.map(_fetch, COINS))
 
-                _db = sqlite3.connect(str(DB_PATH), timeout=10)
+                # Write to DB immediately with short timeout (non-blocking attempt)
                 count = 0
-                for coin, data in results:
-                    if not data:
-                        continue
-                    for k in data:
-                        ts = int(k[0]) // 1000
-                        o, h, l, c, v = float(k[1]), float(k[2]), float(k[3]), float(k[4]), float(k[5])
-                        _db.execute(
-                            "INSERT OR REPLACE INTO prices (coin, timeframe, timestamp, open, high, low, close, volume) "
-                            "VALUES (?, '15m', ?, ?, ?, ?, ?, ?)",
-                            (coin, ts, o, h, l, c, v))
-                        count += 1
-                _db.commit()
-                _db.close()
+                _pending_candle_writes.clear()
+                try:
+                    _db = sqlite3.connect(str(DB_PATH), timeout=2)
+                    for coin, data in fetched:
+                        if not data: continue
+                        for k in data:
+                            ts = int(k[0]) // 1000
+                            o, h, l, c, v = float(k[1]), float(k[2]), float(k[3]), float(k[4]), float(k[5])
+                            _db.execute(
+                                "INSERT OR REPLACE INTO prices (coin, timeframe, timestamp, open, high, low, close, volume) "
+                                "VALUES (?, '15m', ?, ?, ?, ?, ?, ?)",
+                                (coin, ts, o, h, l, c, v))
+                            count += 1
+                    _db.commit()
+                    _db.close()
+                except Exception:
+                    # DB locked — save for later write
+                    for coin, data in fetched:
+                        if not data: continue
+                        for k in data:
+                            _pending_candle_writes.append((coin, int(k[0])//1000,
+                                float(k[1]), float(k[2]), float(k[3]), float(k[4]), float(k[5])))
+                    logger.info(f"Refresh: DB locked, {len(_pending_candle_writes)} candles buffered for later")
                 return count
 
             while self._running:
@@ -2266,40 +2278,28 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                     t2 = time.time()
                     logger.info(f"Signal scan: {len(to_trade)} signals found in {t2-t1:.2f}s")
 
-                    # Step 4: Place ALL orders in parallel (~2s for all)
+                    # Step 4: Place ALL orders in parallel — NO DB writes here (DB lock kills speed)
+                    # Pre-set leverage for all coins (parallel)
+                    def _set_lev(coin):
+                        try:
+                            self.exchange.set_leverage(coin, 8, 'LONG')
+                        except Exception:
+                            pass
+                    from concurrent.futures import ThreadPoolExecutor
+                    with ThreadPoolExecutor(max_workers=10) as pool:
+                        pool.map(_set_lev, [t[0] for t in to_trade])
+
                     def _place_order(args):
                         coin, direction, sig = args
                         lev = 8
-                        conf = sig['confidence']
                         try:
-                            # Log to signal_log
-                            try:
-                                _sdb = sqlite3.connect(str(DB_PATH), timeout=5)
-                                _sdb.execute(
-                                    "INSERT INTO signal_log (timestamp, coin, direction, signal_type, "
-                                    "signal_confidence, profi_action, profi_entry, profi_sl, profi_leverage, "
-                                    "profi_confidence, profi_reason) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                                    (int(time.time()), coin, direction, sig['signal'], conf,
-                                     'AUTO', 0, 0, lev, conf,
-                                     '; '.join(sig.get('reasons', [])[:2])))
-                                _sdb.commit()
-                                _sdb.close()
-                            except Exception:
-                                pass
-
                             if SIGNAL_MODE != 'auto':
-                                logger.info(f"SHADOW: {direction} {coin} ({sig['signal']} {conf:.0%})")
                                 return None
 
                             ticker = self.exchange.get_ticker(coin)
                             if not ticker or ticker.get('price', 0) <= 0:
                                 return None
                             entry = ticker['price']
-
-                            try:
-                                self.exchange.set_leverage(coin, lev, direction)
-                            except Exception:
-                                pass
 
                             amount = self._calculate_position_size(coin, entry, lev)
                             if amount <= 0:
@@ -2312,7 +2312,7 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
 
                             fill_price = result.price or entry
                             fill_amount = result.amount or amount
-                            return (coin, direction, sig, lev, conf, fill_price, fill_amount)
+                            return (coin, direction, sig, lev, sig['confidence'], fill_price, fill_amount)
 
                         except Exception as e:
                             logger.warning(f"Signal order failed {coin}: {e}")
@@ -2368,6 +2368,34 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                                    f"SL=${sl:.4f} TP=${tp:.4f} {lev}x | {sig['signal']} ({conf:.0%})")
 
                     t3 = time.time()
+
+                    # Step 6: Write buffered candles + signal_log to DB AFTER orders
+                    try:
+                        _sdb = sqlite3.connect(str(DB_PATH), timeout=30)
+                        # Flush buffered candles if refresh had DB lock
+                        if _pending_candle_writes:
+                            for cw in _pending_candle_writes:
+                                _sdb.execute(
+                                    "INSERT OR REPLACE INTO prices (coin, timeframe, timestamp, open, high, low, close, volume) "
+                                    "VALUES (?, '15m', ?, ?, ?, ?, ?, ?)", cw)
+                            logger.info(f"Flushed {len(_pending_candle_writes)} buffered candles to DB")
+                            _pending_candle_writes.clear()
+                        for res in results:
+                            if res is None:
+                                continue
+                            coin, direction, sig, lev, conf, fill_price, fill_amount = res
+                            _sdb.execute(
+                                "INSERT INTO signal_log (timestamp, coin, direction, signal_type, "
+                                "signal_confidence, profi_action, profi_entry, profi_sl, profi_leverage, "
+                                "profi_confidence, profi_reason) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                                (int(time.time()), coin, direction, sig['signal'], conf,
+                                 'AUTO', fill_price, 0, lev, conf,
+                                 '; '.join(sig.get('reasons', [])[:2])))
+                        _sdb.commit()
+                        _sdb.close()
+                    except Exception:
+                        pass
+
                     if filled_count:
                         self._notify(
                             f"🎯 {filled_count} SIGNALS filled",
