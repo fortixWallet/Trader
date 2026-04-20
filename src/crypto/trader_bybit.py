@@ -131,11 +131,8 @@ class TrackedPosition:
         if roi > self.peak_pnl:
             self.peak_pnl = roi
 
-        # Trailing stop: activation +7% ROI, drop -2% from peak. NO fixed TP.
-        if self.peak_pnl >= 7.0:
-            self.trailing_active = True
-        if self.trailing_active and roi <= self.peak_pnl - 2.0:
-            return 'TRAILING_STOP', pnl_pct
+        # Trailing stop DISABLED — TP +8% on exchange handles profit exit.
+        # Was: activate +7%, drop -2% → exit at +5% which is BEFORE TP +8%.
 
         # SL: -10% ROI (backup — exchange SL should fire first)
         if roi <= -10.0:
