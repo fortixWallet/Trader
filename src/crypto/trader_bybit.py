@@ -2355,13 +2355,11 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                     with ThreadPoolExecutor(max_workers=10) as pool:
                         results = list(pool.map(_place_order, to_trade))
 
-                    # Step 5: Set SL/TP + track (sequential — shared state)
-                    filled_count = 0
-                    for res in results:
-                        if res is None:
-                            continue
-                        coin, direction, sig, lev, conf, fill_price, fill_amount = res
+                    # Step 5: Set SL/TP in parallel + track
+                    filled_results = [r for r in results if r is not None]
 
+                    def _set_sl_tp(res):
+                        coin, direction, sig, lev, conf, fill_price, fill_amount = res
                         sl_dist = fill_price * 0.055 / lev
                         tp_dist = fill_price * 0.065 / lev
                         if direction == 'LONG':
@@ -2370,7 +2368,6 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                         else:
                             sl = round(fill_price + sl_dist, 6)
                             tp = round(fill_price - tp_dist, 6)
-
                         try:
                             sym = self.exchange._symbol(coin).replace('/', '').replace(':USDT', '')
                             self.exchange._exchange.private_post_v5_position_trading_stop({
@@ -2381,6 +2378,14 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                             })
                         except Exception as e:
                             logger.warning(f"SIGNAL SL/TP failed {coin}: {e}")
+                        return (coin, direction, sig, lev, conf, fill_price, fill_amount, sl, tp)
+
+                    with ThreadPoolExecutor(max_workers=10) as pool:
+                        sl_tp_results = list(pool.map(_set_sl_tp, filled_results))
+
+                    filled_count = 0
+                    for res in sl_tp_results:
+                        coin, direction, sig, lev, conf, fill_price, fill_amount, sl, tp = res
 
                         reason = f"[SIGNAL-AUTO] {sig['signal']} {conf:.0%} | {'; '.join(sig.get('reasons', [])[:2])}"
                         tracked = TrackedPosition(
