@@ -706,10 +706,9 @@ class BybitTrader:
             logger.error(f"Signal error: {e}")
             return []
 
-    def _calculate_position_size(self, coin, price, leverage):
+    def _calculate_position_size(self, coin, price, leverage, cached_equity=None):
         """Position sizing: compound — uses live equity, not fixed capital."""
-        # Compound: use actual equity (profits grow position sizes)
-        equity = self._get_equity()
+        equity = cached_equity or self._get_equity()
         budget = max(equity, self.capital) if equity and equity > 0 else self.capital
 
         used_margin = sum(
@@ -2327,7 +2326,7 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                             if entry <= 0:
                                 return None
 
-                            amount = self._calculate_position_size(coin, entry, lev)
+                            amount = self._calculate_position_size(coin, entry, lev, cached_equity=equity)
                             if amount <= 0:
                                 return None
 
