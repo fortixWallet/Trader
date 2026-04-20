@@ -2207,28 +2207,33 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
             while self._running:
                 try:
                     time.sleep(1)
-                    now = time.time()
-                    secs_in_quarter = now % 900
-                    current_quarter = int(now) // 900
-
-                    # Fire at 890s into 15min block (= 10s before candle close)
-                    # 5s refresh + 0.01s scan + 2s parallel orders = ~7s, done by :14:57
-                    if secs_in_quarter < 888 or secs_in_quarter > 895:
-                        continue
-                    if current_quarter == last_scan_quarter:
-                        continue
-                    last_scan_quarter = current_quarter
-
-                    next_close = (current_quarter + 1) * 900
                     from datetime import datetime, timezone
-                    close_time = datetime.fromtimestamp(next_close, tz=timezone.utc).strftime('%H:%M:%S')
+                    now_dt = datetime.now(timezone.utc)
+                    minute = now_dt.minute
+                    second = now_dt.second
+
+                    # 15m candles close at :00, :15, :30, :45
+                    # Scan at XX:14:50, XX:29:50, XX:44:50, XX:59:50
+                    target_minutes = {14, 29, 44, 59}
+                    if minute not in target_minutes or second < 48 or second > 55:
+                        continue
+
+                    # Dedup: one scan per 15min block
+                    scan_key = f"{now_dt.hour}:{minute}"
+                    if scan_key == last_scan_quarter:
+                        continue
+                    last_scan_quarter = scan_key
+
+                    close_minute = (minute + 1) % 60
+                    close_time = f"{now_dt.hour:02d}:{close_minute:02d}:00"
+                    secs_before = 60 - second
 
                     # Step 1: Refresh 15m candles from Binance (parallel, ~1.3s)
                     t0 = time.time()
                     n_refreshed = _refresh_15m_candles()
                     t1 = time.time()
                     logger.info(f"Signal scan: refreshed {n_refreshed} candles in {t1-t0:.1f}s, "
-                               f"{900-secs_in_quarter:.0f}s before close ({close_time})")
+                               f"{secs_before}s before close ({close_time})")
 
                     # Step 2: Scan signals (0.01s)
                     from src.crypto.signal_scanner import scan_signals
@@ -2372,7 +2377,7 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                                f"(total {t3-t0:.1f}s)")
 
                 except Exception as e:
-                    logger.debug(f"Signal monitor: {e}")
+                    logger.warning(f"Signal monitor ERROR: {e}", exc_info=True)
                     time.sleep(60)
 
         _th.Thread(target=_signal_monitor_loop, daemon=True).start()
