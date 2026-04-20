@@ -56,11 +56,12 @@ DAILY_LOSS_LIMIT = -0.04 # -4% of equity → stop trading for the day
 # Simulation avoided these coins — they break S/R levels (Rules 11, 33, 44)
 BAD_COINS = {'BOME', 'DOT', 'AAVE', 'WIF', 'DOGE', 'OP', 'RENDER', 'TAO', 'ARB'}
 
-# Bybit Demo: 25 of our 30 model coins available
+# Backtest-matched coins: only coins with OI data + available on Bybit Demo
+# Removed: AAVE, TAO (not in backtest), FET, PEPE (not on Bybit), JUP, PYTH, JTO, BOME (no data)
+# Added: APT, FIL, NEAR, TON (in backtest, have data, on Bybit)
 COINS = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'ADA', 'AVAX', 'DOT', 'LINK',
-         'DOGE', 'UNI', 'AAVE', 'LDO', 'CRV', 'RENDER', 'TAO',
-         'ARB', 'OP', 'POL', 'WIF', 'PENDLE', 'JUP', 'PYTH', 'JTO', 'BOME']
-# Missing on Bybit: FET, SHIB, PEPE, BONK, RAY
+         'DOGE', 'UNI', 'LDO', 'CRV', 'RENDER', 'ARB', 'OP', 'POL',
+         'WIF', 'PENDLE', 'APT', 'FIL', 'NEAR', 'TON']
 
 # Sector mapping for diversification
 COIN_SECTOR = {
