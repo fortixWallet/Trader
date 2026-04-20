@@ -2394,11 +2394,14 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                             sl_price=sl, tp_price=0, reason=reason[:200],
                             target_pct=0.07/lev, sl_pct=0.065/lev, max_hold_hours=8
                         )
-                        trade_id = self._journal.record_order_placed(
-                            coin, direction, fill_price, sl, 0, lev, conf, reason, 'SIGNAL', fill_amount)
-                        if trade_id:
-                            self._journal.record_fill(trade_id, fill_price, fill_amount)
-                        tracked.trade_id = trade_id
+                        try:
+                            trade_id = self._journal.record_order_placed(
+                                coin, direction, fill_price, sl, 0, lev, conf, reason, 'SIGNAL', fill_amount)
+                            if trade_id:
+                                self._journal.record_fill(trade_id, fill_price, fill_amount)
+                            tracked.trade_id = trade_id
+                        except Exception:
+                            pass  # DB locked — journal write not critical
                         self._tracked[coin] = tracked
                         filled_count += 1
 
