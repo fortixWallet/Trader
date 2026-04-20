@@ -2167,21 +2167,53 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
             pass
 
         def _signal_monitor_loop():
-            """Scan 5 seconds before each 15m candle close → market order at candle close."""
+            """10s before each 15m candle close: refresh data → scan → market order."""
             last_scan = {}  # coin → last signal timestamp (dedup)
             last_scan_quarter = -1
             logger.info(f"Signal Monitor started ({SIGNAL_MODE} mode, pre-close scan)")
+
+            def _refresh_15m_candles():
+                """Fetch fresh 15m candles from Binance in parallel, write to DB."""
+                from concurrent.futures import ThreadPoolExecutor
+                def _fetch(coin):
+                    try:
+                        sym = coin + 'USDT'
+                        r = requests.get('https://fapi.binance.com/fapi/v1/klines',
+                                        params={'symbol': sym, 'interval': '15m', 'limit': 2}, timeout=5)
+                        return coin, r.json()
+                    except Exception:
+                        return coin, None
+
+                with ThreadPoolExecutor(max_workers=10) as pool:
+                    results = list(pool.map(_fetch, COINS))
+
+                _db = sqlite3.connect(str(DB_PATH), timeout=10)
+                count = 0
+                for coin, data in results:
+                    if not data:
+                        continue
+                    for k in data:
+                        ts = int(k[0]) // 1000
+                        o, h, l, c, v = float(k[1]), float(k[2]), float(k[3]), float(k[4]), float(k[5])
+                        _db.execute(
+                            "INSERT OR REPLACE INTO prices (coin, timeframe, timestamp, open, high, low, close, volume) "
+                            "VALUES (?, '15m', ?, ?, ?, ?, ?, ?)",
+                            (coin, ts, o, h, l, c, v))
+                        count += 1
+                _db.commit()
+                _db.close()
+                return count
+
             while self._running:
                 try:
-                    time.sleep(1)  # tight loop for precise timing
+                    time.sleep(1)
                     now = time.time()
-                    secs_in_quarter = now % 900  # seconds into current 15min block
+                    secs_in_quarter = now % 900
                     current_quarter = int(now) // 900
 
-                    # Fire at 895 seconds into the 15min block (= 5 sec before close)
-                    # 15m candles: :00, :15, :30, :45. Close at :15, :30, :45, :00.
-                    # At :14:55 (895s into :00-:15 block) → scan → order at :14:57 → fills ≈ :15:00 close
-                    if secs_in_quarter < 893 or secs_in_quarter > 899:
+                    # Fire at 890s into 15min block (= 10s before candle close)
+                    # 1.3s refresh + 0.01s scan + order = ~2s total, done by :14:52
+                    if secs_in_quarter < 888 or secs_in_quarter > 895:
                         continue
                     if current_quarter == last_scan_quarter:
                         continue
@@ -2190,7 +2222,15 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                     next_close = (current_quarter + 1) * 900
                     from datetime import datetime, timezone
                     close_time = datetime.fromtimestamp(next_close, tz=timezone.utc).strftime('%H:%M:%S')
-                    logger.info(f"Signal scan: {900 - secs_in_quarter:.0f}s before candle close ({close_time})")
+
+                    # Step 1: Refresh 15m candles from Binance (parallel, ~1.3s)
+                    t0 = time.time()
+                    n_refreshed = _refresh_15m_candles()
+                    t1 = time.time()
+                    logger.info(f"Signal scan: refreshed {n_refreshed} candles in {t1-t0:.1f}s, "
+                               f"{900-secs_in_quarter:.0f}s before close ({close_time})")
+
+                    # Step 2: Scan signals (0.01s)
                     from src.crypto.signal_scanner import scan_signals
                     signals = scan_signals(coins=COINS)
 
