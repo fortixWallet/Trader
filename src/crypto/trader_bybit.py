@@ -2147,7 +2147,7 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
         self._profi_lock = _th.Lock()
         self._signal_queue = _q.Queue(maxsize=5)
         SIGNAL_MODE = 'auto'  # 'shadow' = log only, 'auto' = market order without Profi
-        SIGNAL_SCAN_INTERVAL = 60  # 1 minute
+        SIGNAL_SCAN_INTERVAL = 30  # check every 30s, but only scan at hour boundaries
 
         # Create signal_log table
         try:
@@ -2166,12 +2166,19 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
             pass
 
         def _signal_monitor_loop():
-            """Scan for signals every 5 min. Enqueue strong ones."""
+            """Scan for signals at hour boundaries (matching backtest)."""
             last_scan = {}  # coin → last signal timestamp (dedup)
-            logger.info(f"Signal Monitor started ({SIGNAL_MODE} mode)")
+            last_scan_hour = -1  # track which hour we last scanned
+            logger.info(f"Signal Monitor started ({SIGNAL_MODE} mode, hourly scan)")
             while self._running:
                 try:
                     time.sleep(SIGNAL_SCAN_INTERVAL)
+                    # Only scan at hour boundaries (like backtest)
+                    current_hour = int(time.time()) // 3600
+                    if current_hour == last_scan_hour:
+                        continue
+                    last_scan_hour = current_hour
+                    logger.info("Signal scan: hourly trigger")
                     from src.crypto.signal_scanner import scan_signals
                     signals = scan_signals(coins=COINS)
 
