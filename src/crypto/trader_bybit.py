@@ -2278,17 +2278,34 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                     t2 = time.time()
                     logger.info(f"Signal scan: {len(to_trade)} signals found in {t2-t1:.2f}s")
 
-                    # Step 4: Place ALL orders in parallel — NO DB writes here (DB lock kills speed)
-                    # Pre-set leverage for all coins (parallel)
-                    def _set_lev(coin):
-                        try:
-                            self.exchange.set_leverage(coin, 8, 'LONG')
-                        except Exception:
-                            pass
+                    # Step 4: Pre-fetch all data in parallel BEFORE placing orders
                     from concurrent.futures import ThreadPoolExecutor
-                    with ThreadPoolExecutor(max_workers=10) as pool:
-                        pool.map(_set_lev, [t[0] for t in to_trade])
 
+                    # 4a: Get tickers + set leverage in parallel (~4s total instead of 4s × N)
+                    def _prefetch(coin_dir_sig):
+                        coin, direction, sig = coin_dir_sig
+                        try:
+                            ticker = self.exchange.get_ticker(coin)
+                            price = ticker.get('price', 0) if ticker else 0
+                            try:
+                                self.exchange.set_leverage(coin, 8, direction)
+                            except Exception:
+                                pass
+                            return coin, price
+                        except Exception:
+                            return coin, 0
+
+                    with ThreadPoolExecutor(max_workers=10) as pool:
+                        prefetch_results = dict(pool.map(_prefetch, to_trade))
+
+                    # 4b: Calculate position sizes (needs equity — one API call)
+                    equity = self._get_equity() or self.capital
+                    budget = max(equity, self.capital)
+
+                    t2b = time.time()
+                    logger.info(f"Signal scan: prefetch done in {t2b-t2:.1f}s, placing orders...")
+
+                    # 4c: Place market orders in parallel (no API calls except place_market_order)
                     def _place_order(args):
                         coin, direction, sig = args
                         lev = 8
@@ -2296,10 +2313,9 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                             if SIGNAL_MODE != 'auto':
                                 return None
 
-                            ticker = self.exchange.get_ticker(coin)
-                            if not ticker or ticker.get('price', 0) <= 0:
+                            entry = prefetch_results.get(coin, 0)
+                            if entry <= 0:
                                 return None
-                            entry = ticker['price']
 
                             amount = self._calculate_position_size(coin, entry, lev)
                             if amount <= 0:
