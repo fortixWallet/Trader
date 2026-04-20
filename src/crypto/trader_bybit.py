@@ -137,8 +137,8 @@ class TrackedPosition:
         if self.trailing_active and roi <= self.peak_pnl - 2.0:
             return 'TRAILING_STOP', pnl_pct
 
-        # SL: -6.5% ROI (backup — exchange SL should fire first)
-        if roi <= -6.5:
+        # SL: -10% ROI (backup — exchange SL should fire first)
+        if roi <= -10.0:
             return 'STOP_LOSS', pnl_pct
 
         # Emergency backup
@@ -2337,8 +2337,8 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                                 return None
 
                             # Calculate SL/TP BEFORE order — include in market order
-                            sl_dist = entry * 0.055 / lev
-                            tp_dist = entry * 0.065 / lev
+                            sl_dist = entry * 0.10 / lev   # SL -10% ROI
+                            tp_dist = entry * 0.08 / lev   # TP +8% ROI
                             if direction == 'LONG':
                                 sl = round(entry - sl_dist, 6)
                                 tp = round(entry + tp_dist, 6)
