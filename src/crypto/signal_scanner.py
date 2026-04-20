@@ -195,101 +195,41 @@ def scan_coin(conn, coin, ts=None, fresh_candles=None):
     short_score = 0
     long_score = 0
 
-    # --- SHORT signals ---
+    # --- CORE ONLY signals (matching backtest exactly) ---
     at_top = close_pos > 0.55
-    oi_dropping = oi_chg is not None and oi_chg < -0.5
-    taker_sell = tk is not None and tk < 0.9
-    liq_longs = liq_ratio is not None and liq_ratio > 0.3
-    cvd_dropping = cvd_chg is not None and cvd_chg < 0
-    has_upper_wick = upper_wick > 0.05
-    decel = accel < -0.05
-    rsi_high = rsi > 70
-    bb_high = bb > 2.0
-    trend_extended = trend_4h > 1.5
-
-    if at_top and oi_dropping and liq_longs:
-        short_score += 5
-        reasons.append(f"TOP({close_pos:.0%}) + OI↓{oi_chg:+.1f}% + liq_longs({liq_ratio:+.2f}) → 92%")
-    if at_top and oi_dropping and taker_sell:
-        short_score += 5
-        reasons.append(f"TOP({close_pos:.0%}) + OI↓{oi_chg:+.1f}% + taker_SELL({tk:.2f}) → 91%")
-    if at_top and oi_dropping and cvd_dropping:
-        short_score += 3
-        reasons.append(f"TOP + OI↓ + CVD↓ → 75%")
-    if at_top and oi_dropping and has_upper_wick:
-        short_score += 3
-        reasons.append(f"TOP + OI↓ + wick → 73%")
-    if at_top and rsi_high and oi_dropping and decel:
-        short_score += 3
-        reasons.append(f"RSI{rsi:.0f} + OI↓ + decel → 78%")
-    if at_top and bb_high and oi_dropping and trend_extended:
-        short_score += 3
-        reasons.append(f"BB{bb:.1f} + OI↓ + 4H{trend_4h:+.1f}% → 80%")
-    if at_top and decel and has_upper_wick:
-        short_score += 1
-        reasons.append(f"15m exhaustion")
-
-    # --- LONG signals ---
     at_bot = close_pos < 0.45
+    oi_dropping = oi_chg is not None and oi_chg < -0.5
     oi_rising = oi_chg is not None and oi_chg > 0.5
+    taker_sell = tk is not None and tk < 0.9
     taker_buy = tk is not None and tk > 1.1
+    liq_longs = liq_ratio is not None and liq_ratio > 0.3
     liq_shorts = liq_ratio is not None and liq_ratio < -0.3
+    cvd_dropping = cvd_chg is not None and cvd_chg < 0
     cvd_rising = cvd_chg is not None and cvd_chg > 0
-    has_lower_wick = lower_wick > 0.05
-    accel_up = accel > 0.05
-    rsi_low = rsi < 30
-    bb_low = bb < -2.0
-    trend_dipped = trend_4h < -1.0
 
-    if at_bot and oi_rising and liq_shorts:
-        long_score += 5
-        reasons.append(f"BOT({close_pos:.0%}) + OI↑{oi_chg:+.1f}% + liq_shorts({liq_ratio:+.2f}) → 91%")
-    if at_bot and oi_rising and taker_buy:
-        long_score += 5
-        reasons.append(f"BOT({close_pos:.0%}) + OI↑{oi_chg:+.1f}% + taker_BUY({tk:.2f}) → 89%")
-    if at_bot and oi_rising and cvd_rising:
-        long_score += 3
-        reasons.append(f"BOT + OI↑ + CVD↑ → 77%")
-    if at_bot and oi_rising and has_lower_wick:
-        long_score += 3
-        reasons.append(f"BOT + OI↑ + wick → 68%")
-    if at_bot and rsi_low and oi_rising and accel_up:
-        long_score += 3
-        reasons.append(f"RSI{rsi:.0f} + OI↑ + accel → 67%")
-    if at_bot and bb_low and oi_rising and trend_dipped:
-        long_score += 3
-        reasons.append(f"BB{bb:.1f} + OI↑ + 4H{trend_4h:+.1f}% → 72%")
-    if at_bot and accel_up and has_lower_wick:
+    if at_top and oi_dropping:
+        if liq_longs:
+            short_score += 5
+            reasons.append(f"TOP({close_pos:.0%}) + OI↓{oi_chg:+.1f}% + liq_longs({liq_ratio:+.2f}) → 92%")
+        if taker_sell:
+            short_score += 5
+            reasons.append(f"TOP({close_pos:.0%}) + OI↓{oi_chg:+.1f}% + taker_SELL({tk:.2f}) → 91%")
+        if cvd_dropping:
+            short_score += 3
+            reasons.append(f"TOP + OI↓ + CVD↓ → 75%")
+        short_score += 1
+
+    if at_bot and oi_rising:
+        if liq_shorts:
+            long_score += 5
+            reasons.append(f"BOT({close_pos:.0%}) + OI↑{oi_chg:+.1f}% + liq_shorts({liq_ratio:+.2f}) → 91%")
+        if taker_buy:
+            long_score += 5
+            reasons.append(f"BOT({close_pos:.0%}) + OI↑{oi_chg:+.1f}% + taker_BUY({tk:.2f}) → 89%")
+        if cvd_rising:
+            long_score += 3
+            reasons.append(f"BOT + OI↑ + CVD↑ → 77%")
         long_score += 1
-        reasons.append(f"15m reversal")
-
-    # --- TREND continuation signals (60-79% accuracy) ---
-    oi_strong_rise = oi_chg is not None and oi_chg > 1.0
-    pullback = close_pos < 0.4
-    bounce = close_pos > 0.6
-    uptrend = trend_4h > 1.0
-    downtrend = trend_4h < -1.0
-
-    # LONG trend: 4H UP + OI rising strong + pullback + taker BUY (79%)
-    if uptrend and oi_strong_rise and taker_buy and pullback:
-        long_score += 4
-        reasons.append(f"TREND LONG: 4H{trend_4h:+.1f}% + OI↑{oi_chg:+.1f}% + taker_BUY + pullback → 79%")
-    # LONG trend: 4H>2% + OI rising + pullback (74%)
-    elif trend_4h > 2.0 and oi_rising and pullback and (tk is None or tk > 1.0):
-        long_score += 3
-        reasons.append(f"TREND LONG: 4H{trend_4h:+.1f}% + OI↑ + pullback → 74%")
-    # LONG trend: 4H>1.5% + OI rising + taker BUY + pullback (63%)
-    elif trend_4h > 1.5 and oi_rising and taker_buy and pullback:
-        long_score += 2
-        reasons.append(f"TREND LONG: 4H{trend_4h:+.1f}% + OI↑ + taker_BUY + pullback → 63%")
-
-    # SHORT trend: 4H DOWN + OI rising strong + bounce + taker SELL (61%)
-    if downtrend and oi_strong_rise and taker_sell and bounce:
-        short_score += 3
-        reasons.append(f"TREND SHORT: 4H{trend_4h:+.1f}% + OI↑{oi_chg:+.1f}% + taker_SELL + bounce → 61%")
-    elif trend_4h < -2.0 and oi_rising and bounce and (tk is None or tk < 1.0):
-        short_score += 2
-        reasons.append(f"TREND SHORT: 4H{trend_4h:+.1f}% + OI↑ + bounce → 55%")
 
     # Determine signal
     if short_score >= 5:
