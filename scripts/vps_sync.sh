@@ -65,7 +65,8 @@ try:
     d=json.load(sys.stdin)
     for p in d:
         if p.get('name')=='fortix-bybit':
-            print(p.get('pm2_env',{}).get('status','unknown'))
+            s=p.get('pm2_env',{}).get('status','unknown')
+            print(s.strip())
             sys.exit(0)
     print('not_found')
 except: print('error')
@@ -95,7 +96,7 @@ case "$1" in
 
         # Verify
         VPS_STATUS=$(check_vps_running)
-        if [ "$VPS_STATUS" = "online" ]; then
+        if echo "$VPS_STATUS" | grep -q "online"; then
             ssh_cmd "pm2 list"
             echo "✅ Trading on VPS"
         else
