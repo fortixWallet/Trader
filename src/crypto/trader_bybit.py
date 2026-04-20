@@ -2170,16 +2170,21 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
             """Scan for signals at hour boundaries (matching backtest)."""
             last_scan = {}  # coin → last signal timestamp (dedup)
             last_scan_hour = -1  # track which hour we last scanned
-            logger.info(f"Signal Monitor started ({SIGNAL_MODE} mode, hourly scan)")
+            logger.info(f"Signal Monitor started ({SIGNAL_MODE} mode, 15min scan, limit orders)")
             while self._running:
                 try:
                     time.sleep(SIGNAL_SCAN_INTERVAL)
-                    # Only scan at hour boundaries (like backtest)
-                    current_hour = int(time.time()) // 3600
-                    if current_hour == last_scan_hour:
+                    # Scan every 15 minutes (at :02, :17, :32, :47)
+                    # 2 min after each 15m candle close to ensure data in DB
+                    now = time.time()
+                    current_quarter = int(now) // 900  # 15-min block
+                    minutes_in_quarter = (now % 900) / 60
+                    if current_quarter == last_scan_hour:
                         continue
-                    last_scan_hour = current_hour
-                    logger.info("Signal scan: hourly trigger")
+                    if minutes_in_quarter < 2.0:
+                        continue  # wait until 2 min after candle close
+                    last_scan_hour = current_quarter
+                    logger.info("Signal scan: 15min trigger")
                     from src.crypto.signal_scanner import scan_signals
                     signals = scan_signals(coins=COINS)
 
@@ -2252,12 +2257,17 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
 
                     if SIGNAL_MODE == 'auto':
                         try:
-                            # Get live price
-                            ticker = self.exchange.get_ticker(coin)
-                            if not ticker or ticker.get('price', 0) <= 0:
-                                logger.warning(f"SIGNAL: no price for {coin}")
+                            # Entry price = latest 15m candle close (matching backtest)
+                            _db = sqlite3.connect(str(DB_PATH), timeout=10)
+                            _row = _db.execute(
+                                "SELECT close FROM prices WHERE coin=? AND timeframe='15m' "
+                                "ORDER BY timestamp DESC LIMIT 1", (coin,)
+                            ).fetchone()
+                            _db.close()
+                            if not _row or _row[0] <= 0:
+                                logger.warning(f"SIGNAL: no candle close for {coin}")
                                 continue
-                            entry = ticker['price']
+                            candle_close = _row[0]
 
                             # Set leverage
                             try:
@@ -2265,22 +2275,54 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                             except Exception:
                                 pass
 
-                            # Position size
-                            amount = self._calculate_position_size(coin, entry, lev)
+                            # Position size based on candle close
+                            amount = self._calculate_position_size(coin, candle_close, lev)
                             if amount <= 0:
                                 logger.info(f"SIGNAL: {coin} no budget")
                                 continue
 
-                            # Market order
+                            # Limit order at candle close price (backtest-matched entry)
                             side = 'sell' if direction == 'SHORT' else 'buy'
-                            result = self.exchange.place_market_order(coin, side, amount)
+                            result = self.exchange.place_limit_order(
+                                coin, side, amount, candle_close)
 
                             if not result:
-                                logger.warning(f"SIGNAL: market order failed {coin}")
+                                logger.warning(f"SIGNAL: limit order failed {coin}")
                                 continue
 
-                            fill_price = result.price or entry
-                            fill_amount = result.amount or amount
+                            order_id = result.order_id if hasattr(result, 'order_id') else None
+                            logger.info(f"SIGNAL LIMIT: {direction} {coin} @${candle_close:.4f} "
+                                       f"{lev}x | waiting fill (2min timeout)")
+
+                            # Wait up to 2 min for fill
+                            filled = False
+                            fill_price = candle_close
+                            fill_amount = amount
+                            for _wait in range(8):
+                                time.sleep(15)
+                                if order_id:
+                                    status = self.exchange.check_order_status(coin, order_id)
+                                    if status and status.get('status') in ('closed', 'filled', 'Filled'):
+                                        filled = True
+                                        fill_price = float(status.get('price', candle_close) or candle_close)
+                                        fill_amount = float(status.get('filled', amount) or amount)
+                                        break
+                                # Also check if position appeared
+                                pos = self.exchange.get_position(coin)
+                                if pos and pos.size > 0:
+                                    filled = True
+                                    fill_price = pos.entry_price or candle_close
+                                    break
+
+                            if not filled:
+                                # Cancel unfilled order
+                                if order_id:
+                                    try:
+                                        self.exchange.cancel_order(coin, order_id)
+                                    except Exception:
+                                        pass
+                                logger.info(f"SIGNAL SKIP: {coin} limit not filled in 2min")
+                                continue
 
                             # SL -5.5% ROI + TP +6.5% ROI on exchange
                             sl_dist = fill_price * 0.055 / lev
@@ -2318,13 +2360,13 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                             tracked.trade_id = trade_id
                             self._tracked[coin] = tracked
 
-                            logger.info(f"SIGNAL AUTO: {direction} {coin} @${fill_price:.4f} "
-                                       f"SL=${sl:.4f} {lev}x | {sig['signal']} ({conf:.0%})")
+                            logger.info(f"SIGNAL FILLED: {direction} {coin} @${fill_price:.4f} "
+                                       f"SL=${sl:.4f} TP=${tp:.4f} {lev}x | {sig['signal']} ({conf:.0%})")
                             self._notify(
                                 f"🎯 SIGNAL: {direction} {coin} {lev}x",
                                 f"Signal: {sig['signal']} ({conf:.0%})\n"
-                                f"Entry: ${fill_price:.4f} | SL: ${sl:.4f}\n"
-                                f"Market order FILLED\n"
+                                f"Entry: ${fill_price:.4f} | SL: ${sl:.4f} | TP: ${tp:.4f}\n"
+                                f"Limit order at candle close FILLED\n"
                                 f"{'; '.join(sig.get('reasons', [])[:2])}")
 
                         except Exception as e:
