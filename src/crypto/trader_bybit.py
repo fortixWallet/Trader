@@ -2421,10 +2421,21 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                         pass
 
                     if filled_count:
+                        # Build detailed notification with each trade
+                        lines = []
+                        for res in results:
+                            if res is None: continue
+                            coin, direction, sig, lev, conf, fill_price, fill_amount, sl, tp = res
+                            d = sig.get('details', {})
+                            emoji = '🟢' if direction == 'LONG' else '🔴'
+                            lines.append(
+                                f"{emoji} {direction} {coin} {lev}x @${fill_price:.4f}\n"
+                                f"   SL=${sl:.4f} TP=${tp:.4f} ({conf:.0%})\n"
+                                f"   cp={d.get('close_pos','?')} OI={d.get('oi_chg','?')}% tk={d.get('taker','?')}\n"
+                                f"   {'; '.join(sig.get('reasons', [])[:1])}")
                         self._notify(
-                            f"🎯 {filled_count} SIGNALS filled",
-                            f"Placed {filled_count}/{len(to_trade)} orders in {t3-t2:.1f}s\n"
-                            f"Total time: {t3-t0:.1f}s (refresh+scan+orders)")
+                            f"🎯 {filled_count} SIGNALS filled ({t3-t0:.0f}s)",
+                            '\n'.join(lines))
                     logger.info(f"Signal scan complete: {filled_count}/{len(to_trade)} filled in {t3-t2:.1f}s "
                                f"(total {t3-t0:.1f}s)")
 
