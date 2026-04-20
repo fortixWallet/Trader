@@ -31,7 +31,7 @@ MIN_CONF = 0.75
 
 COINS = ['BTC','ETH','SOL','BNB','XRP','ADA','AVAX','DOT','LINK','DOGE',
          'UNI','LDO','CRV','RENDER','ARB','OP','POL','WIF','PENDLE',
-         'APT','FIL','NEAR','TON']
+         'APT','FIL','NEAR','TON']  # 23 coins — matches live exactly (no FET/PEPE)
 
 # Parse dates
 if len(sys.argv) >= 3:
