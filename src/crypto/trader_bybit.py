@@ -2212,7 +2212,7 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                     current_quarter = int(now) // 900
 
                     # Fire at 890s into 15min block (= 10s before candle close)
-                    # 1.3s refresh + 0.01s scan + order = ~2s total, done by :14:52
+                    # 5s refresh + 0.01s scan + 2s parallel orders = ~7s, done by :14:57
                     if secs_in_quarter < 888 or secs_in_quarter > 895:
                         continue
                     if current_quarter == last_scan_quarter:
@@ -2234,163 +2234,148 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                     from src.crypto.signal_scanner import scan_signals
                     signals = scan_signals(coins=COINS)
 
+                    # Step 3: Filter signals
+                    to_trade = []
                     for coin, sig in signals.items():
                         if sig['signal'] == 'NEUTRAL':
                             continue
                         if sig['confidence'] < 0.75:
                             continue
-                        # Dedup: 1 per coin per hour
                         if coin in last_scan and time.time() - last_scan[coin] < 3600:
                             continue
-                        # Skip if already in position or pending
                         if coin in self._tracked or coin in self._pending_orders:
                             continue
-                        # Cooldown after SL: 2h per SL, 24h if 3+ SL same coin same day
                         if coin in self._coin_cooldown:
                             cooldown_time = self._coin_cooldown[coin]
                             sl_count = getattr(self, '_coin_sl_count', {}).get(coin, 0)
                             cooldown_hours = 24 if sl_count >= 3 else 2
                             if time.time() - cooldown_time < cooldown_hours * 3600:
                                 continue
-
                         direction = 'SHORT' if 'SHORT' in sig['signal'] else 'LONG'
+                        to_trade.append((coin, direction, sig))
                         last_scan[coin] = time.time()
 
-                        try:
-                            self._signal_queue.put_nowait({
-                                'coin': coin, 'direction': direction,
-                                'signal': sig, 'timestamp': time.time()
-                            })
-                            logger.info(f"SIGNAL: {sig['signal']} {coin} ({sig['confidence']:.0%}) → queued")
-                        except _q.Full:
-                            pass
-
-                except Exception as e:
-                    logger.debug(f"Signal monitor: {e}")
-                    time.sleep(60)
-
-        def _signal_dispatcher_loop():
-            """Process queued signals — AUTO mode: market order without Profi."""
-            logger.info(f"Signal Dispatcher started ({SIGNAL_MODE} mode)")
-            while self._running:
-                try:
-                    item = self._signal_queue.get(timeout=30)
-
-                    if time.time() - item['timestamp'] > 300:
+                    if not to_trade:
                         continue
 
-                    coin = item['coin']
-                    direction = item['direction']
-                    sig = item['signal']
-                    lev = 8
-                    conf = sig['confidence']
+                    t2 = time.time()
+                    logger.info(f"Signal scan: {len(to_trade)} signals found in {t2-t1:.2f}s")
 
-                    # Log to signal_log
-                    try:
-                        _conn = sqlite3.connect(str(DB_PATH))
-                        _conn.execute(
-                            "INSERT INTO signal_log (timestamp, coin, direction, signal_type, "
-                            "signal_confidence, profi_action, profi_entry, profi_sl, profi_leverage, "
-                            "profi_confidence, profi_reason) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                            (int(time.time()), coin, direction, sig['signal'], conf,
-                             'AUTO', 0, 0, lev, conf,
-                             '; '.join(sig.get('reasons', [])[:2]))
-                        )
-                        _conn.commit()
-                        _conn.close()
-                    except Exception:
-                        pass
-
-                    if SIGNAL_MODE == 'auto':
+                    # Step 4: Place ALL orders in parallel (~2s for all)
+                    def _place_order(args):
+                        coin, direction, sig = args
+                        lev = 8
+                        conf = sig['confidence']
                         try:
-                            # Market order RIGHT before candle close (entry ≈ candle close)
+                            # Log to signal_log
+                            try:
+                                _sdb = sqlite3.connect(str(DB_PATH), timeout=5)
+                                _sdb.execute(
+                                    "INSERT INTO signal_log (timestamp, coin, direction, signal_type, "
+                                    "signal_confidence, profi_action, profi_entry, profi_sl, profi_leverage, "
+                                    "profi_confidence, profi_reason) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                                    (int(time.time()), coin, direction, sig['signal'], conf,
+                                     'AUTO', 0, 0, lev, conf,
+                                     '; '.join(sig.get('reasons', [])[:2])))
+                                _sdb.commit()
+                                _sdb.close()
+                            except Exception:
+                                pass
+
+                            if SIGNAL_MODE != 'auto':
+                                logger.info(f"SHADOW: {direction} {coin} ({sig['signal']} {conf:.0%})")
+                                return None
+
                             ticker = self.exchange.get_ticker(coin)
                             if not ticker or ticker.get('price', 0) <= 0:
-                                logger.warning(f"SIGNAL: no price for {coin}")
-                                continue
+                                return None
                             entry = ticker['price']
 
-                            # Set leverage
                             try:
                                 self.exchange.set_leverage(coin, lev, direction)
                             except Exception:
                                 pass
 
-                            # Position size
                             amount = self._calculate_position_size(coin, entry, lev)
                             if amount <= 0:
-                                logger.info(f"SIGNAL: {coin} no budget")
-                                continue
+                                return None
 
-                            # Market order — fires ~5s before candle close
                             side = 'sell' if direction == 'SHORT' else 'buy'
                             result = self.exchange.place_market_order(coin, side, amount)
-
                             if not result:
-                                logger.warning(f"SIGNAL: market order failed {coin}")
-                                continue
+                                return None
 
                             fill_price = result.price or entry
                             fill_amount = result.amount or amount
-
-                            # SL -5.5% ROI + TP +6.5% ROI on exchange
-                            sl_dist = fill_price * 0.055 / lev
-                            tp_dist = fill_price * 0.065 / lev
-                            if direction == 'LONG':
-                                sl = round(fill_price - sl_dist, 6)
-                                tp = round(fill_price + tp_dist, 6)
-                            else:
-                                sl = round(fill_price + sl_dist, 6)
-                                tp = round(fill_price - tp_dist, 6)
-
-                            try:
-                                sym = self.exchange._symbol(coin).replace('/', '').replace(':USDT', '')
-                                self.exchange._exchange.private_post_v5_position_trading_stop({
-                                    'category': 'linear', 'symbol': sym,
-                                    'stopLoss': str(sl), 'slTriggerBy': 'LastPrice',
-                                    'takeProfit': str(tp), 'tpTriggerBy': 'LastPrice',
-                                    'positionIdx': 0,
-                                })
-                            except Exception as e:
-                                logger.warning(f"SIGNAL SL/TP failed {coin}: {e}")
-
-                            # Track position
-                            reason = f"[SIGNAL-AUTO] {sig['signal']} {conf:.0%} | {'; '.join(sig.get('reasons', [])[:2])}"
-                            tracked = TrackedPosition(
-                                coin=coin, direction=direction, entry_price=fill_price,
-                                size=fill_amount, leverage=lev, entry_time=time.time(),
-                                sl_price=sl, tp_price=0, reason=reason[:200],
-                                target_pct=0.07/lev, sl_pct=0.065/lev, max_hold_hours=8
-                            )
-                            trade_id = self._journal.record_order_placed(
-                                coin, direction, fill_price, sl, 0, lev, conf, reason, 'SIGNAL', fill_amount)
-                            if trade_id:
-                                self._journal.record_fill(trade_id, fill_price, fill_amount)
-                            tracked.trade_id = trade_id
-                            self._tracked[coin] = tracked
-
-                            logger.info(f"SIGNAL AUTO: {direction} {coin} @${fill_price:.4f} "
-                                       f"SL=${sl:.4f} TP=${tp:.4f} {lev}x | {sig['signal']} ({conf:.0%})")
-                            self._notify(
-                                f"🎯 SIGNAL: {direction} {coin} {lev}x",
-                                f"Signal: {sig['signal']} ({conf:.0%})\n"
-                                f"Entry: ${fill_price:.4f} | SL: ${sl:.4f} | TP: ${tp:.4f}\n"
-                                f"Market order at candle close\n"
-                                f"{'; '.join(sig.get('reasons', [])[:2])}")
+                            return (coin, direction, sig, lev, conf, fill_price, fill_amount)
 
                         except Exception as e:
-                            logger.warning(f"Signal auto order failed {coin}: {e}")
-                    else:
-                        logger.info(f"SHADOW: {direction} {coin} ({sig['signal']} {conf:.0%})")
+                            logger.warning(f"Signal order failed {coin}: {e}")
+                            return None
 
-                except _q.Empty:
-                    continue
+                    from concurrent.futures import ThreadPoolExecutor
+                    with ThreadPoolExecutor(max_workers=10) as pool:
+                        results = list(pool.map(_place_order, to_trade))
+
+                    # Step 5: Set SL/TP + track (sequential — shared state)
+                    filled_count = 0
+                    for res in results:
+                        if res is None:
+                            continue
+                        coin, direction, sig, lev, conf, fill_price, fill_amount = res
+
+                        sl_dist = fill_price * 0.055 / lev
+                        tp_dist = fill_price * 0.065 / lev
+                        if direction == 'LONG':
+                            sl = round(fill_price - sl_dist, 6)
+                            tp = round(fill_price + tp_dist, 6)
+                        else:
+                            sl = round(fill_price + sl_dist, 6)
+                            tp = round(fill_price - tp_dist, 6)
+
+                        try:
+                            sym = self.exchange._symbol(coin).replace('/', '').replace(':USDT', '')
+                            self.exchange._exchange.private_post_v5_position_trading_stop({
+                                'category': 'linear', 'symbol': sym,
+                                'stopLoss': str(sl), 'slTriggerBy': 'LastPrice',
+                                'takeProfit': str(tp), 'tpTriggerBy': 'LastPrice',
+                                'positionIdx': 0,
+                            })
+                        except Exception as e:
+                            logger.warning(f"SIGNAL SL/TP failed {coin}: {e}")
+
+                        reason = f"[SIGNAL-AUTO] {sig['signal']} {conf:.0%} | {'; '.join(sig.get('reasons', [])[:2])}"
+                        tracked = TrackedPosition(
+                            coin=coin, direction=direction, entry_price=fill_price,
+                            size=fill_amount, leverage=lev, entry_time=time.time(),
+                            sl_price=sl, tp_price=0, reason=reason[:200],
+                            target_pct=0.07/lev, sl_pct=0.065/lev, max_hold_hours=8
+                        )
+                        trade_id = self._journal.record_order_placed(
+                            coin, direction, fill_price, sl, 0, lev, conf, reason, 'SIGNAL', fill_amount)
+                        if trade_id:
+                            self._journal.record_fill(trade_id, fill_price, fill_amount)
+                        tracked.trade_id = trade_id
+                        self._tracked[coin] = tracked
+                        filled_count += 1
+
+                        logger.info(f"SIGNAL AUTO: {direction} {coin} @${fill_price:.4f} "
+                                   f"SL=${sl:.4f} TP=${tp:.4f} {lev}x | {sig['signal']} ({conf:.0%})")
+
+                    t3 = time.time()
+                    if filled_count:
+                        self._notify(
+                            f"🎯 {filled_count} SIGNALS filled",
+                            f"Placed {filled_count}/{len(to_trade)} orders in {t3-t2:.1f}s\n"
+                            f"Total time: {t3-t0:.1f}s (refresh+scan+orders)")
+                    logger.info(f"Signal scan complete: {filled_count}/{len(to_trade)} filled in {t3-t2:.1f}s "
+                               f"(total {t3-t0:.1f}s)")
+
                 except Exception as e:
-                    logger.debug(f"Signal dispatcher: {e}")
-                    time.sleep(10)
+                    logger.debug(f"Signal monitor: {e}")
+                    time.sleep(60)
 
         _th.Thread(target=_signal_monitor_loop, daemon=True).start()
-        _th.Thread(target=_signal_dispatcher_loop, daemon=True).start()
 
         while self._running:
             try:
