@@ -706,6 +706,8 @@ class BybitTrader:
             logger.error(f"Signal error: {e}")
             return []
 
+    _contract_info_cache = {}  # coin → {contractSize, minAmount, maxAmount} — static, cache forever
+
     def _calculate_position_size(self, coin, price, leverage, cached_equity=None):
         """Position sizing: compound — uses live equity, not fixed capital."""
         equity = cached_equity or self._get_equity()
@@ -724,7 +726,9 @@ class BybitTrader:
         target_margin = min(budget * RISK_PER_POSITION * confidence * cb_factor, available)
         target_notional = target_margin * leverage
 
-        info = self.exchange.get_contract_info(coin)
+        if coin not in self._contract_info_cache:
+            self._contract_info_cache[coin] = self.exchange.get_contract_info(coin)
+        info = self._contract_info_cache[coin]
         contract_size = info.get('contractSize', 1)
         min_amount = info.get('minAmount', 0.001)
         max_amount = info.get('maxAmount', 999999)
@@ -2326,17 +2330,21 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                             if entry <= 0:
                                 return None
 
+                            _t0 = time.time()
                             amount = self._calculate_position_size(coin, entry, lev, cached_equity=equity)
+                            _t1 = time.time()
                             if amount <= 0:
                                 return None
 
                             side = 'sell' if direction == 'SHORT' else 'buy'
                             result = self.exchange.place_market_order(coin, side, amount)
+                            _t2 = time.time()
                             if not result:
                                 return None
 
                             fill_price = result.price or entry
                             fill_amount = result.amount or amount
+                            logger.info(f"  ORDER {coin}: size={_t1-_t0:.1f}s market={_t2-_t1:.1f}s total={_t2-_t0:.1f}s")
                             return (coin, direction, sig, lev, sig['confidence'], fill_price, fill_amount)
 
                         except Exception as e:
