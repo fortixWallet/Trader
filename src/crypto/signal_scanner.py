@@ -217,7 +217,6 @@ def scan_coin(conn, coin, ts=None, fresh_candles=None):
         if cvd_dropping:
             short_score += 3
             reasons.append(f"TOP + OI↓ + CVD↓ → 75%")
-        short_score += 1
 
     if at_bot and oi_rising:
         if liq_shorts:
@@ -229,7 +228,6 @@ def scan_coin(conn, coin, ts=None, fresh_candles=None):
         if cvd_rising:
             long_score += 3
             reasons.append(f"BOT + OI↑ + CVD↑ → 77%")
-        long_score += 1
 
     # Determine signal
     if short_score >= 5:
