@@ -45,8 +45,12 @@ def _nearest(conn, table, col, coin, ts, w=7200):
     return float(r[0]) if r and r[0] is not None else None
 
 
-def scan_coin(conn, coin, ts=None):
+def scan_coin(conn, coin, ts=None, fresh_candles=None):
     """Scan a single coin for direction signals.
+
+    Args:
+        fresh_candles: optional dict {coin: [(ts, o, h, l, c, v), ...]} from Binance.
+                       If provided, replaces/supplements DB candles for freshness.
 
     Returns: {
         'signal': 'STRONG_SHORT'|'SHORT'|'STRONG_LONG'|'LONG'|'NEUTRAL',
@@ -64,6 +68,25 @@ def scan_coin(conn, coin, ts=None):
         "WHERE coin=? AND timeframe='15m' AND timestamp<=? ORDER BY timestamp DESC LIMIT 16",
         (coin, ts)
     ).fetchall()
+
+    # Merge fresh candles from Binance (bypass DB staleness)
+    if fresh_candles and coin in fresh_candles:
+        db_dict = {}
+        for r in rows:
+            db_dict[id(r)] = r  # keep as-is for now
+        # Build candle dict by timestamp for merging
+        db_ts_rows = conn.execute(
+            "SELECT timestamp, open, high, low, close, volume FROM prices "
+            "WHERE coin=? AND timeframe='15m' AND timestamp<=? ORDER BY timestamp DESC LIMIT 16",
+            (coin, ts)
+        ).fetchall()
+        candle_map = {r[0]: (r[1], r[2], r[3], r[4], r[5]) for r in db_ts_rows}
+        # Override with fresh data
+        for fc in fresh_candles[coin]:
+            candle_map[fc[0]] = (fc[1], fc[2], fc[3], fc[4], fc[5])
+        # Sort by timestamp desc, take 16
+        sorted_ts = sorted(candle_map.keys(), reverse=True)[:16]
+        rows = [(candle_map[t]) for t in sorted_ts]
 
     if len(rows) < 12:
         return {'signal': 'NEUTRAL', 'confidence': 0, 'reasons': ['insufficient 15m data'],
@@ -295,8 +318,11 @@ def scan_coin(conn, coin, ts=None):
     }
 
 
-def scan_signals(coins=None, ts=None):
+def scan_signals(coins=None, ts=None, fresh_candles=None):
     """Scan all coins and return direction signals.
+
+    Args:
+        fresh_candles: optional dict {coin: [(ts, o, h, l, c, v), ...]} from Binance.
 
     Returns: {coin: {signal, confidence, reasons, details}}
     """
@@ -306,7 +332,7 @@ def scan_signals(coins=None, ts=None):
 
     for coin in coins:
         try:
-            results[coin] = scan_coin(conn, coin, ts)
+            results[coin] = scan_coin(conn, coin, ts, fresh_candles)
         except Exception as e:
             log.debug(f"Signal scan {coin}: {e}")
             results[coin] = {'signal': 'NEUTRAL', 'confidence': 0,

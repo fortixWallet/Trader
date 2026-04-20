@@ -2173,9 +2173,10 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
             logger.info(f"Signal Monitor started ({SIGNAL_MODE} mode, pre-close scan)")
 
             _pending_candle_writes = []  # buffer for DB writes after orders
+            _fresh_candles = {}  # {coin: [(ts, o, h, l, c, v), ...]} — always fresh in memory
 
             def _refresh_15m_candles():
-                """Fetch fresh 15m candles from Binance in parallel. Write to DB later."""
+                """Fetch fresh 15m candles from Binance in parallel. Store in memory + try DB."""
                 from concurrent.futures import ThreadPoolExecutor
                 def _fetch(coin):
                     try:
@@ -2189,7 +2190,17 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                 with ThreadPoolExecutor(max_workers=10) as pool:
                     fetched = list(pool.map(_fetch, COINS))
 
-                # Write to DB immediately with short timeout (non-blocking attempt)
+                # Always store in memory (scanner uses this directly)
+                _fresh_candles.clear()
+                for coin, data in fetched:
+                    if not data: continue
+                    _fresh_candles[coin] = []
+                    for k in data:
+                        _fresh_candles[coin].append((
+                            int(k[0]) // 1000,
+                            float(k[1]), float(k[2]), float(k[3]), float(k[4]), float(k[5])))
+
+                # Try DB write (non-blocking, 2s timeout)
                 count = 0
                 _pending_candle_writes.clear()
                 try:
@@ -2207,14 +2218,13 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                     _db.commit()
                     _db.close()
                 except Exception:
-                    # DB locked — save for later write
                     for coin, data in fetched:
                         if not data: continue
                         for k in data:
                             _pending_candle_writes.append((coin, int(k[0])//1000,
                                 float(k[1]), float(k[2]), float(k[3]), float(k[4]), float(k[5])))
-                    logger.info(f"Refresh: DB locked, {len(_pending_candle_writes)} candles buffered for later")
-                return count
+                    logger.info(f"Refresh: DB locked, {len(_pending_candle_writes)} candles buffered (memory OK)")
+                return len(_fresh_candles)
 
             while self._running:
                 try:
@@ -2247,9 +2257,9 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                     logger.info(f"Signal scan: refreshed {n_refreshed} candles in {t1-t0:.1f}s, "
                                f"{secs_before}s before close ({close_time})")
 
-                    # Step 2: Scan signals (0.01s)
+                    # Step 2: Scan signals with fresh candles from memory (0.01s)
                     from src.crypto.signal_scanner import scan_signals
-                    signals = scan_signals(coins=COINS)
+                    signals = scan_signals(coins=COINS, fresh_candles=_fresh_candles)
 
                     # Step 3: Filter signals
                     to_trade = []
