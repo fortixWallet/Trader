@@ -995,7 +995,7 @@ class BybitTrader:
 
             # Cancel pending orders that contradict the news
             cancelled_pending = []
-            if impact >= 7 and news_dir in ('BULLISH', 'BEARISH') and self._pending_orders:
+            if impact >= 9 and news_dir in ('BULLISH', 'BEARISH') and self._pending_orders:
                 cancel_dir = 'SHORT' if news_dir == 'BULLISH' else 'LONG'
                 cancelled_pending = [c for c, po in self._pending_orders.items() if po.direction == cancel_dir]
                 if cancelled_pending:
