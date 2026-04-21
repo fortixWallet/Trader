@@ -369,10 +369,10 @@ News: "{news_item.title}"
                 continue
 
             if impact >= 10:
-                # Impact 10: close ALL contradicting positions (catastrophic only)
+                # Impact 10 ONLY: close contradicting positions (catastrophic events)
                 close_coins.append(coin)
-            elif impact == 9 and price_getter:
-                # Impact 9: close only if position is LOSING
+            elif False and price_getter:
+                # Disabled: was impact 9, now nothing below 10 closes
                 price = price_getter(coin)
                 if price > 0:
                     if tracked.direction == 'SHORT':
