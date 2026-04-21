@@ -256,6 +256,116 @@ def scan_coin(conn, coin, ts=None, fresh_candles=None):
     }
 
 
+def scan_coin_from_data(candles_15m, oi_now, oi_4h, taker, liq_ratio, cvd_now, cvd_4h):
+    """Scan from pre-loaded arrays — NO DB access. Identical to backtest logic.
+
+    Args:
+        candles_15m: list of (high, low, close) tuples, newest first, 12-16 items
+        oi_now, oi_4h: float OI values (or None)
+        taker: float taker ratio (or None)
+        liq_ratio: float liq ratio (or None)
+        cvd_now, cvd_4h: float CVD values (or None)
+
+    Returns: same dict as scan_coin
+    """
+    if len(candles_15m) < 12:
+        return {'signal': 'NEUTRAL', 'confidence': 0, 'reasons': ['insufficient data'], 'details': {}}
+
+    rows = list(reversed(candles_15m))  # oldest first
+    p = rows[-1][2]  # close of newest
+    if p == 0:
+        return {'signal': 'NEUTRAL', 'confidence': 0, 'reasons': ['zero price'], 'details': {}}
+
+    highs = [r[0] for r in rows]
+    lows = [r[1] for r in rows]
+    closes = [r[2] for r in rows]
+
+    rng_h, rng_l = max(highs), min(lows)
+    close_pos = (p - rng_l) / (rng_h - rng_l) if rng_h > rng_l else 0.5
+
+    # OI change
+    oi_chg = None
+    if oi_now is not None and oi_4h is not None and oi_4h > 0:
+        oi_chg = (oi_now / oi_4h - 1) * 100
+
+    # CVD change
+    cvd_chg = None
+    if cvd_now is not None and cvd_4h is not None:
+        cvd_chg = (cvd_now - cvd_4h) / 1e6
+
+    tk = taker
+
+    details = {
+        'close_pos': round(close_pos, 3),
+        'oi_chg': round(oi_chg, 2) if oi_chg is not None else None,
+        'taker': round(tk, 3) if tk is not None else None,
+        'liq_ratio': round(liq_ratio, 2) if liq_ratio is not None else None,
+        'cvd_chg': round(cvd_chg, 1) if cvd_chg is not None else None,
+    }
+
+    reasons = []
+    short_score = 0
+    long_score = 0
+
+    at_top = close_pos > 0.55
+    at_bot = close_pos < 0.45
+    oi_dropping = oi_chg is not None and oi_chg < -0.5
+    oi_rising = oi_chg is not None and oi_chg > 0.5
+    taker_sell = tk is not None and tk < 0.9
+    taker_buy = tk is not None and tk > 1.1
+    liq_longs = liq_ratio is not None and liq_ratio > 0.3
+    liq_shorts = liq_ratio is not None and liq_ratio < -0.3
+    cvd_dropping = cvd_chg is not None and cvd_chg < 0
+    cvd_rising = cvd_chg is not None and cvd_chg > 0
+
+    if at_top and oi_dropping:
+        if liq_longs:
+            short_score += 5
+            reasons.append(f"TOP({close_pos:.0%}) + OI↓{oi_chg:+.1f}% + liq_longs({liq_ratio:+.2f}) → 92%")
+        if taker_sell:
+            short_score += 5
+            reasons.append(f"TOP({close_pos:.0%}) + OI↓{oi_chg:+.1f}% + taker_SELL({tk:.2f}) → 91%")
+        if cvd_dropping:
+            short_score += 3
+            reasons.append(f"TOP + OI↓ + CVD↓ → 75%")
+
+    if at_bot and oi_rising:
+        if liq_shorts:
+            long_score += 5
+            reasons.append(f"BOT({close_pos:.0%}) + OI↑{oi_chg:+.1f}% + liq_shorts({liq_ratio:+.2f}) → 91%")
+        if taker_buy:
+            long_score += 5
+            reasons.append(f"BOT({close_pos:.0%}) + OI↑{oi_chg:+.1f}% + taker_BUY({tk:.2f}) → 89%")
+        if cvd_rising:
+            long_score += 3
+            reasons.append(f"BOT + OI↑ + CVD↑ → 77%")
+
+    if short_score >= 5:
+        signal = 'STRONG_SHORT'
+        confidence = min(0.95, 0.7 + short_score * 0.03)
+    elif short_score >= 3:
+        signal = 'SHORT'
+        confidence = min(0.85, 0.6 + short_score * 0.03)
+    elif long_score >= 5:
+        signal = 'STRONG_LONG'
+        confidence = min(0.95, 0.7 + long_score * 0.03)
+    elif long_score >= 3:
+        signal = 'LONG'
+        confidence = min(0.85, 0.6 + long_score * 0.03)
+    else:
+        signal = 'NEUTRAL'
+        confidence = 0
+
+    return {
+        'signal': signal,
+        'confidence': round(confidence, 2),
+        'reasons': reasons,
+        'details': details,
+        'short_score': short_score,
+        'long_score': long_score,
+    }
+
+
 def scan_signals(coins=None, ts=None, fresh_candles=None):
     """Scan all coins and return direction signals.
 

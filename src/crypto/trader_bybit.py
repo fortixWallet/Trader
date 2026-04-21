@@ -2274,16 +2274,109 @@ Goal: reach 85%+ WR. What needs to change to get there?"""}]
                     except Exception as e:
                         logger.warning(f"Pre-scan sync failed: {e}")
 
-                    # Step 1: Refresh 15m candles from Binance (parallel, ~1.3s)
+                    # Step 1: Load data into arrays (like backtest) — NO DB during scan
                     t0 = time.time()
-                    n_refreshed = _refresh_15m_candles()
-                    t1 = time.time()
-                    logger.info(f"Signal scan: refreshed {n_refreshed} candles in {t1-t0:.1f}s, "
-                               f"{secs_before}s before close ({close_time})")
+                    from src.crypto.signal_scanner import scan_coin_from_data
+                    from concurrent.futures import ThreadPoolExecutor
 
-                    # Step 2: Scan signals with fresh candles from memory (0.01s)
-                    from src.crypto.signal_scanner import scan_signals
-                    signals = scan_signals(coins=COINS, fresh_candles=_fresh_candles)
+                    # 1a: Load candles + derivatives from DB into memory
+                    current_block = int(time.time()) // 900 * 900
+                    _scan_db = sqlite3.connect(str(DB_PATH), timeout=5)
+                    _scan_db.execute("PRAGMA busy_timeout=5000")
+
+                    scan_arrays = {}
+                    for coin in COINS:
+                        # 15m candles: only CLOSED (timestamp < current_block)
+                        rows = _scan_db.execute(
+                            "SELECT high, low, close FROM prices "
+                            "WHERE coin=? AND timeframe='15m' AND timestamp<? "
+                            "ORDER BY timestamp DESC LIMIT 16",
+                            (coin, current_block)).fetchall()
+                        candles = [(r[0], r[1], r[2]) for r in rows]
+
+                        # OI
+                        oi_now_r = _scan_db.execute(
+                            "SELECT c FROM pred_oi_history WHERE coin=? AND timestamp BETWEEN ? AND ? "
+                            "ORDER BY ABS(timestamp-?) LIMIT 1",
+                            (coin, current_block-7200, current_block+7200, current_block)).fetchone()
+                        oi_4h_r = _scan_db.execute(
+                            "SELECT c FROM pred_oi_history WHERE coin=? AND timestamp BETWEEN ? AND ? "
+                            "ORDER BY ABS(timestamp-?) LIMIT 1",
+                            (coin, current_block-21600, current_block-7200, current_block-14400)).fetchone()
+
+                        # Taker
+                        tk_r = _scan_db.execute(
+                            "SELECT ratio FROM pred_taker_volume WHERE coin=? AND timestamp BETWEEN ? AND ? "
+                            "ORDER BY ABS(timestamp-?) LIMIT 1",
+                            (coin, current_block-7200, current_block+7200, current_block)).fetchone()
+
+                        # Liq
+                        liq_r = _scan_db.execute(
+                            "SELECT long_liq_usd, short_liq_usd FROM pred_liq_history "
+                            "WHERE coin=? AND timestamp BETWEEN ? AND ? ORDER BY ABS(timestamp-?) LIMIT 1",
+                            (coin, current_block-7200, current_block+7200, current_block)).fetchone()
+
+                        # CVD
+                        cvd_now_r = _scan_db.execute(
+                            "SELECT cvd FROM pred_cvd_futures WHERE coin=? AND timestamp BETWEEN ? AND ? "
+                            "ORDER BY ABS(timestamp-?) LIMIT 1",
+                            (coin, current_block-7200, current_block+7200, current_block)).fetchone()
+                        cvd_4h_r = _scan_db.execute(
+                            "SELECT cvd FROM pred_cvd_futures WHERE coin=? AND timestamp BETWEEN ? AND ? "
+                            "ORDER BY ABS(timestamp-?) LIMIT 1",
+                            (coin, current_block-21600, current_block-7200, current_block-14400)).fetchone()
+
+                        scan_arrays[coin] = {
+                            'candles': candles,
+                            'oi_now': float(oi_now_r[0]) if oi_now_r and oi_now_r[0] else None,
+                            'oi_4h': float(oi_4h_r[0]) if oi_4h_r and oi_4h_r[0] else None,
+                            'taker': float(tk_r[0]) if tk_r and tk_r[0] else None,
+                            'liq_ratio': None,
+                            'cvd_now': float(cvd_now_r[0]) if cvd_now_r and cvd_now_r[0] else None,
+                            'cvd_4h': float(cvd_4h_r[0]) if cvd_4h_r and cvd_4h_r[0] else None,
+                        }
+                        if liq_r:
+                            lt = float(liq_r[0]) + float(liq_r[1])
+                            if lt > 0:
+                                scan_arrays[coin]['liq_ratio'] = (float(liq_r[0]) - float(liq_r[1])) / lt
+
+                    _scan_db.close()
+
+                    # 1b: Fetch fresh closed candle from Binance → override in arrays
+                    def _fetch_candle(coin):
+                        try:
+                            r = requests.get('https://fapi.binance.com/fapi/v1/klines',
+                                params={'symbol': coin + 'USDT', 'interval': '15m', 'limit': 2}, timeout=5)
+                            for k in r.json():
+                                ts = int(k[0]) // 1000
+                                if ts < current_block:  # only closed candles
+                                    return coin, (float(k[2]), float(k[3]), float(k[4]))  # h, l, c
+                        except: pass
+                        return coin, None
+
+                    with ThreadPoolExecutor(max_workers=10) as pool:
+                        fresh = dict(pool.map(_fetch_candle, COINS))
+
+                    for coin, candle in fresh.items():
+                        if candle and coin in scan_arrays and scan_arrays[coin]['candles']:
+                            scan_arrays[coin]['candles'][0] = candle  # replace newest with Binance fresh
+
+                    t1 = time.time()
+
+                    # Step 2: Scan from arrays (like backtest — no DB)
+                    signals = {}
+                    for coin in COINS:
+                        d = scan_arrays.get(coin, {})
+                        signals[coin] = scan_coin_from_data(
+                            d.get('candles', []),
+                            d.get('oi_now'), d.get('oi_4h'),
+                            d.get('taker'), d.get('liq_ratio'),
+                            d.get('cvd_now'), d.get('cvd_4h'))
+
+                    t1b = time.time()
+                    n_signals = sum(1 for s in signals.values() if s['signal'] != 'NEUTRAL')
+                    logger.info(f"Signal scan: loaded {len(scan_arrays)} coins in {t1-t0:.1f}s, "
+                               f"scanned in {t1b-t1:.2f}s, {n_signals} active")
 
                     # Step 3: Filter signals
                     to_trade = []
